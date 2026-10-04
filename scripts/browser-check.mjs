@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Browser integration checks against running Vite + backend, with no extra npm dependencies.
- * SKYLO_BROWSER_URL=http://127.0.0.1:5173 node scripts/browser-check.mjs
+ * SKYLO_BROWSER_URL=http://localhost:5173 node scripts/browser-check.mjs
  * Optional CHROMIUM_PATH and SKYLO_VERIFICATION_DIR.
  */
 import { spawn } from 'node:child_process';
@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const url = process.env.SKYLO_BROWSER_URL || 'http://127.0.0.1:5173';
+const url = process.env.SKYLO_BROWSER_URL || 'http://localhost:5173';
 const artifacts = process.env.SKYLO_VERIFICATION_DIR || path.join(root, '..', 'skylo-verification');
 const profile = path.join(artifacts, `chromium-${Date.now()}`);
 const checks = [];
@@ -60,7 +60,7 @@ class CDP {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`CDP timeout: ${method}`));
-      }, 20_000);
+      }, method === 'Page.captureScreenshot' ? 45_000 : 20_000);
       this.pending.set(id, { resolve, reject, timer });
       this.websocket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
@@ -72,7 +72,7 @@ class CDP {
     await this.send('Page.enable', {}, sessionId);
     await this.send('Page.navigate', { url }, sessionId);
     const page = {
-      sessionId,
+      sessionId, targetId,
       evaluate: async (fn, argument) => {
         const result = await this.send('Runtime.evaluate', {
           expression: `(${fn.toString()})(${JSON.stringify(argument) ?? ''})`, awaitPromise: true, returnByValue: true,
@@ -81,6 +81,16 @@ class CDP {
         return result.result.value;
       },
       screenshot: async name => {
+        await this.send('Target.activateTarget', { targetId });
+        await until(() => page.evaluate(() => {
+          if (!document.querySelector('.game-stage')) return true;
+          const canvas = document.querySelector('.game-stage canvas');
+          const bounds = canvas?.getBoundingClientRect();
+          const expectedLabels = Math.max(1, (window.__skyloCheck?.game?.playerCount || 2) - 1);
+          return !!canvas && !!bounds?.width && !!bounds?.height && !document.querySelector('.scene-loading')
+            && document.querySelectorAll('.table-player-label').length >= expectedLabels;
+        }), 'Scene did not finish loading before screenshot', 30_000);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const { data } = await this.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }, sessionId);
         await writeFile(path.join(artifacts, name), Buffer.from(data, 'base64'));
       },
@@ -129,11 +139,13 @@ async function clickSelector(page, selector) {
   await clickPoint(page, point);
 }
 async function clickPoint(page, point) {
+  await cdp.send('Target.activateTarget', { targetId: page.targetId });
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point }, page.sessionId);
   await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point }, page.sessionId);
   await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point }, page.sessionId);
 }
 async function input(page, selector, value) {
+  await cdp.send('Target.activateTarget', { targetId: page.targetId });
   await until(() => reveal(page, { selector }), `Input not visible/reachable: ${selector}`);
   return page.evaluate(({ selector, value }) => {
     const element = document.querySelector(selector);
@@ -223,7 +235,10 @@ try {
   assert.equal(afterAction.revision, before.revision + 1);
   assert.equal(afterAction.playback.paused, true);
   await click(host, 'Nächster Zug');
-  await until(async () => !(await state(host)).game.playback.stepping, 'Turn step did not settle');
+  await until(async () => {
+    const current = (await state(host)).game;
+    return current.revision > afterAction.revision && !current.playback.stepping;
+  }, 'Turn step did not settle');
   const afterTurn = (await state(host)).game;
   assert(afterTurn.revision > afterAction.revision);
   assert.equal(afterTurn.playback.paused, true);
@@ -233,11 +248,14 @@ try {
   await until(async () => (await state(host)).game.playback.delayMs === 2000, 'Live tempo change did not apply');
   await click(host, 'Fortsetzen');
   await until(async () => !(await state(host)).game.playback.paused, 'Resume did not apply');
+  await input(host, '#bot-tempo', 4000); // Change a running game to 1000 ms.
+  await until(async () => (await state(host)).game.playback.delayMs === 1000, 'Running game tempo change did not apply');
+  await click(host, 'Pause');
+  await until(async () => (await state(host)).game.playback.paused, 'Running game did not pause');
+  // Max speed is checked while paused; the separate natural-match scenario runs
+  // at zero delay. This avoids racing a whole match against software-GPU input.
   await input(host, '#bot-tempo', 5000);
   await until(async () => (await state(host)).game.playback.delayMs === 0, 'Maximum tempo did not apply');
-  await until(async () => (await state(host)).game.phase !== 'reveal two cards', 'Bots did not finish initial reveals');
-  await click(host, 'Pause');
-  await until(async () => (await state(host)).game.playback.paused, 'Fast game did not pause');
   const game = (await state(host)).game;
   await input(host, '.camera-focus-field select', game.players[7].id);
   assert.equal(await host.evaluate(() => document.querySelector('.camera-focus-field select').value), game.players[7].id);
@@ -349,6 +367,7 @@ try {
   process.exitCode = 1;
 } finally {
   await writeFile(path.join(artifacts, 'chromium.log'), browserLog);
+  if (cdp) await cdp.send('Browser.close').catch(() => undefined);
   cdp?.websocket.close();
   browser.kill('SIGTERM');
   await delay(200);
