@@ -1,4 +1,4 @@
-import { Dispatch, FC, SetStateAction } from "react";
+import { Dispatch, FC, SetStateAction, useState } from "react";
 import { socket } from "../socket";
 
 import Text from "../global/Text";
@@ -26,14 +26,36 @@ export const Footer: FC<Footer> = ({
   setClientsInRoom,
   setSession,
 }) => {
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
   function nextGame() {
-    socket.emit("next-round", { sessionId: session });
+    if (!isConnected || pending) return;
+    setPending(true);
+    setError("");
+    socket.timeout(8000).emit("next-round", { sessionId: session }, (timeout: Error | null, response: string) => {
+      setPending(false);
+      if (timeout) return setError("Keine Antwort vom Server. Bitte versuche es erneut.");
+      if (response !== "success") setError("Die nächste Runde konnte nicht gestartet werden. Bitte versuche es erneut.");
+    });
   }
 
   function leaveSession(sessionName: string) {
-    socket.emit("leave-session", sessionName);
-    setClientsInRoom(0);
-    setSession("");
+    if (!isConnected) {
+      setClientsInRoom(0);
+      setSession("");
+      return;
+    }
+    if (pending) return;
+    setPending(true);
+    setError("");
+    socket.timeout(8000).emit("leave-session", sessionName, (timeout: Error | null, response: string) => {
+      setPending(false);
+      if (timeout) return setError("Keine Antwort vom Server. Bitte versuche es erneut.");
+      if (response !== "success") return setError("Die Session konnte nicht verlassen werden. Bitte versuche es erneut.");
+      setClientsInRoom(0);
+      setSession("");
+    });
   }
 
   const isEndOfGame = gameData.phase === "game ended";
@@ -47,14 +69,15 @@ export const Footer: FC<Footer> = ({
         </div>
         <div className="flex justify-between items-center">
           {!isEndOfGame && showNextGameButton && (
-            <Button onClick={nextGame}>Next Game</Button>
+            <Button disabled={!isConnected || pending} onClick={nextGame}>Next Game</Button>
           )}
           {isEndOfGame && <p className="mr-4">Game is over</p>}
-          <Button variant="secondary" onClick={() => leaveSession(session)}>
+          <Button disabled={pending} variant="secondary" onClick={() => leaveSession(session)}>
             Leave
           </Button>
         </div>
       </div>
+      {error && <p role="alert" className="my-2">{error}</p>}
       {gameData.players.map((player, index) => (
         <div key={index} className="mb-3 pt-2 mt-2 border-t border-black">
           <div className="flex justify-between items-center">

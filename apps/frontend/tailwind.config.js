@@ -8,7 +8,6 @@ export default {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
-    "./node_modules/flowbite-react/**/*.js",
   ],
   theme: {
     extend: {
@@ -39,6 +38,6 @@ export default {
       },
     },
   },
-  plugins: [import("flowbite/plugin")],
+  plugins: [],
   darkMode: "class",
 };

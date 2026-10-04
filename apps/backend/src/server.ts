@@ -17,14 +17,18 @@ import {
   handleLeaveSession,
   handleNewGame,
   handleDisconnect,
+  isSessionMember,
 } from "./game/events";
 import dotenv from "dotenv";
+import { acknowledge, isRecord, validDescription, validIceCandidate } from "./game/sessionValidation";
+import { sessionRoom } from "./game/sessionRoom";
 
 dotenv.config();
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
-const httpServer = new Server(app);
+export const httpServer = new Server(app);
 export const io = new SocketIOServer(httpServer, {
+  maxHttpBufferSize: 65_536,
   cors: {
     origin: FRONTEND_URL,
     methods: ["GET", "POST"],
@@ -32,74 +36,51 @@ export const io = new SocketIOServer(httpServer, {
 });
 
 io.on("connection", (socket: Socket) => {
-  console.log("A user connected:", socket.id);
-
-  socket.on(
-    "join-session",
-    (sessionId: string, callback: Function | undefined) => {
-      console.log(typeof callback);
-      handleJoinSession(socket, sessionId, callback);
+  // Bound repeated expensive/control events without affecting normal play or
+  // a full group's ICE negotiation. Socket.IO also bounds individual messages.
+  let windowStart = Date.now();
+  let controls = 0;
+  let signals = 0;
+  const allow = (signaling: boolean) => {
+    if (Date.now() - windowStart >= 10_000) {
+      windowStart = Date.now();
+      controls = 0;
+      signals = 0;
     }
-  );
-
-  socket.on("leave-session", (sessionId: string) => {
-    // TODO: check if user is in that session before leaving
-    handleLeaveSession(socket, sessionId);
-  });
-
-  socket.on("create-offer", (offerData) => {
-    const { offerDescription, sessionName } = offerData;
-
-    if (!sessionName || sessionName == "")
-      return console.log("No session name provided");
-
-    const clientsInRoom =
-      io.sockets.adapter.rooms.get(sessionName) || new Set();
-    clientsInRoom.forEach((clientId) => {
-      if (clientId !== socket.id) {
-        io.to(clientId).emit("offer-made", offerDescription);
+    if (signaling) return ++signals <= 600;
+    return ++controls <= 60;
+  };
+  const control = (handler: (payload: unknown, callback?: unknown) => void) =>
+    (payload: unknown, callback?: unknown) => {
+      if (!allow(false)) {
+        acknowledge(callback, "error:invalid");
+        return;
       }
-    });
-  });
+      handler(payload, callback);
+    };
 
-  socket.on("answer-call", (answerData) => {
-    const { answerDescription, sessionName } = answerData;
+  socket.on("join-session", control((sessionId, callback) => handleJoinSession(socket, sessionId, callback)));
+  socket.on("leave-session", control((sessionId, callback) => handleLeaveSession(socket, sessionId, callback)));
+  socket.on("new-game", control((gameDetails, callback) => handleNewGame(socket, gameDetails, callback)));
 
-    if (!sessionName || sessionName == "")
-      return console.log("No session name provided");
-
-    const clientsInRoom =
-      io.sockets.adapter.rooms.get(sessionName) || new Set();
-    clientsInRoom.forEach((clientId) => {
-      if (clientId !== socket.id) {
-        io.to(clientId).emit("answer-made", answerDescription);
+  const signal = (outEvent: string, field: string, valid: (value: unknown) => boolean) =>
+    (payload: unknown) => {
+      if (!allow(true) || !isRecord(payload) || !isSessionMember(socket, payload.sessionName) || !valid(payload[field])) return;
+      // A target is optional for the existing two-player frontend. A targeted
+      // request may only address a different participant in the same session.
+      if (payload.to !== undefined) {
+        if (typeof payload.to !== "string" || payload.to.length > 64 || payload.to === socket.id) return;
+        const target = io.sockets.sockets.get(payload.to);
+        if (!target || !isSessionMember(target, payload.sessionName)) return;
+        target.emit(outEvent, payload[field]);
+      } else {
+        socket.to(sessionRoom(payload.sessionName)).emit(outEvent, payload[field]);
       }
-    });
-  });
-
-  socket.on("ice-candidate", (candidateData) => {
-    const { candidate, sessionName } = candidateData;
-
-    if (!sessionName || sessionName == "")
-      return console.log("No session name provided");
-
-    const clientsInRoom =
-      io.sockets.adapter.rooms.get(sessionName) || new Set();
-    clientsInRoom.forEach((clientId) => {
-      if (clientId !== socket.id) {
-        io.to(clientId).emit("add-ice-candidate", candidate);
-      }
-    });
-  });
-
-  socket.on("new-game", (gameDetails: { sessionId: string }) =>
-    // TODO: get sessionId from socket instead of passing it from client
-    handleNewGame(socket, gameDetails)
-  );
-
-  socket.on("disconnect", () => {
-    handleDisconnect(socket);
-  });
+    };
+  socket.on("create-offer", signal("offer-made", "offerDescription", value => validDescription(value, "offer")));
+  socket.on("answer-call", signal("answer-made", "answerDescription", value => validDescription(value, "answer")));
+  socket.on("ice-candidate", signal("add-ice-candidate", "candidate", validIceCandidate));
+  socket.on("disconnect", () => handleDisconnect(socket));
 });
 
 // helps to debug reading envs
@@ -128,6 +109,27 @@ app.all("*", (req: Request, res: Response) => {
 
 app.use(errorHandler);
 
-httpServer.listen(PORT, () => {
-  log("ExpressJS", `Server listening on ${PORT} - Environment: ${environment}`);
-});
+export const startServer = (port: number | string = PORT, host?: string) => {
+  return new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => reject(error);
+    httpServer.once("error", onError);
+    const numericPort = typeof port === "string" ? Number(port) : port;
+    if (!Number.isInteger(numericPort) || numericPort < 0 || numericPort > 65_535) {
+      httpServer.off("error", onError);
+      reject(new Error("PORT must be a valid TCP port"));
+      return;
+    }
+    httpServer.listen(numericPort, host, () => {
+      httpServer.off("error", onError);
+      log("ExpressJS", `Server listening on ${port} - Environment: ${environment}`);
+      resolve();
+    });
+  });
+};
+
+if (require.main === module) {
+  void startServer().catch(error => {
+    console.error("Server could not start", error);
+    process.exitCode = 1;
+  });
+}

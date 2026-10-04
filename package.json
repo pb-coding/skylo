@@ -9,6 +9,11 @@
     "dev:frontend": "npm run dev --prefix apps/frontend -- --host 0.0.0.0 --port 5173 --strictPort",
     "dev:backend": "npm run dev --prefix apps/backend",
     "build": "npm run build --prefix apps/frontend && npm run build --prefix apps/backend",
-    "lint": "npm run lint --prefix apps/frontend"
+    "lint": "npm run lint --prefix apps/frontend",
+    "test": "npm test --prefix apps/backend",
+    "check": "npm run lint && npm test && npm run build"
+  },
+  "engines": {
+    "node": ">=24 <25"
   }
 }
