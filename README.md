@@ -39,4 +39,4 @@ docker build -t skylo-frontend apps/frontend
 docker build -t skylo-backend apps/backend
 ```
 
-The old frontend compose file is retained inside its app as a legacy reference. Automatic deployment and the Hetzner development preview are deferred; the archived deployment files are not active GitHub workflows. Original repos remain untouched. A new GitHub repository named `skylo` is the intended destination.
+The old frontend compose file is retained inside its app as a legacy reference. Production and automatic pull-request previews are configured in `.github/workflows/deploy.yml`. See [Hetzner deployment](docs/deployment.md) for one-time server, Cloudflare, and GitHub setup. The archived deployment files are not active GitHub workflows.
