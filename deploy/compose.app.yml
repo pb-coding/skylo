@@ -1,0 +1,38 @@
+services:
+  frontend:
+    image: ghcr.io/pb-coding/skylo-frontend:${IMAGE_TAG:?Set IMAGE_TAG}
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.${STACK_NAME}-web.rule=Host(`${HOSTNAME:?Set HOSTNAME}`)
+      - traefik.http.routers.${STACK_NAME}-web.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-web.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-web.priority=10
+      - traefik.http.services.${STACK_NAME}-web.loadbalancer.server.port=80
+
+  backend:
+    image: ghcr.io/pb-coding/skylo-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      ENVIRONMENT: ${STACK_NAME}
+      PORT: 3001
+      FRONTEND_URL: https://${HOSTNAME}
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.${STACK_NAME}-socket.rule=Host(`${HOSTNAME}`) && PathPrefix(`/socket.io`)
+      - traefik.http.routers.${STACK_NAME}-socket.entrypoints=websecure
+      - traefik.http.routers.${STACK_NAME}-socket.tls.certresolver=letsencrypt
+      - traefik.http.routers.${STACK_NAME}-socket.priority=100
+      - traefik.http.services.${STACK_NAME}-socket.loadbalancer.server.port=3001
+
+networks:
+  proxy:
+    external: true
+    name: proxy

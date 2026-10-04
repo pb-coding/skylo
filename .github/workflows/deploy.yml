@@ -1,0 +1,124 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: deploy-${{ github.event.pull_request.number || 'production' }}
+  cancel-in-progress: false
+jobs:
+  images:
+    if: >-
+      (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') ||
+      (github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.app }}
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: true
+          tags: ghcr.io/pb-coding/skylo-${{ matrix.app }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+
+  deploy:
+    needs: images
+    if: >-
+      (github.event_name != 'pull_request' && github.ref == 'refs/heads/main') ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'pull_request' && 'preview' || 'production' }}
+      url: ${{ github.event_name == 'pull_request' && format('https://pr-{0}.skylo-dev.pb-vps.org', github.event.pull_request.number) || 'https://skylo.pb-vps.org' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Upload deployment files
+        env:
+          SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
+          SSH_PORT: ${{ secrets.HETZNER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" 'mkdir -p /home/pb/apps/skylo/deploy'
+          scp -P "$SSH_PORT" deploy/compose.app.yml deploy/deploy.sh deploy/ci-deploy.sh "$SSH_USER@$SSH_HOST:/home/pb/apps/skylo/deploy/"
+      - name: Deploy production or preview
+        env:
+          SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
+          SSH_PORT: ${{ secrets.HETZNER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          if [[ -n "$PR_NUMBER" ]]; then
+            args="pr $PR_NUMBER $IMAGE_TAG"
+          else
+            args="prod $IMAGE_TAG"
+          fi
+          printf '%s' "$GHCR_TOKEN" | ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "GHCR_USER='${{ github.actor }}' bash /home/pb/apps/skylo/deploy/ci-deploy.sh up $args"
+      - name: Preview URL
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: echo "https://pr-${PR_NUMBER}.skylo-dev.pb-vps.org" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify public route and Socket.IO
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [[ -n "$PR_NUMBER" ]]; then
+            url="https://pr-${PR_NUMBER}.skylo-dev.pb-vps.org"
+          else
+            url="https://skylo.pb-vps.org"
+          fi
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors "$url/" -o /dev/null
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 --retry-all-errors "$url/socket.io/?EIO=4&transport=polling" | grep -q '^0{'
+
+  remove-preview:
+    if: >-
+      github.event_name == 'pull_request' && github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: preview
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HETZNER_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+      - name: Remove preview
+        env:
+          SSH_HOST: ${{ secrets.HETZNER_SSH_HOST }}
+          SSH_PORT: ${{ secrets.HETZNER_SSH_PORT }}
+          SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash /home/pb/apps/skylo/deploy/deploy.sh down pr $PR_NUMBER"
