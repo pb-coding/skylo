@@ -1,26 +1,5 @@
-import { FC, ReactNode } from "react";
-import { socket } from "../socket";
-import { Player } from "../types/gameTypes";
+import { ReactNode } from "react";
 
-type DisplayProps = {
-  data: Player | undefined;
-  children: ReactNode;
-};
-
-/**
- * This component will display its children only if they are the owner.
- * @param param0
- * @returns
- */
-
-const Display: FC<DisplayProps> = ({ data, children }) => {
-  const userSocketId = socket.id;
-
-  if (!data || userSocketId !== data.socketId) {
-    return null;
-  }
-
-  return <div>{children}</div>;
-};
-
-export default Display;
+export default function Display({ playerId, ownPlayerId, children }: { playerId: string; ownPlayerId: string | null; children: ReactNode }) {
+  return playerId === ownPlayerId ? <div>{children}</div> : null;
+}

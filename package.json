@@ -11,7 +11,11 @@
     "build": "npm run build --prefix apps/frontend && npm run build --prefix apps/backend",
     "lint": "npm run lint --prefix apps/frontend",
     "test": "npm test --prefix apps/backend",
-    "check": "npm run lint && npm test && npm run build"
+    "contracts:sync": "node scripts/sync-contracts.mjs",
+    "contracts:check": "node scripts/sync-contracts.mjs --check",
+    "replay": "npm run replay --prefix apps/backend --",
+    "browser:check": "node scripts/browser-check.mjs",
+    "check": "npm run contracts:check && npm run lint && npm test && npm run build"
   },
   "engines": {
     "node": ">=24 <25"

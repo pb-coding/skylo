@@ -1,12 +1,5 @@
-export type SessionResponse =
-  | "success"
-  | "error:invalid"
-  | "error:full"
-  | "error:running"
-  | "error:joined"
-  | "error:membership"
-  | "error:host"
-  | "error:players";
+import { ResponseCode } from "../protocol/gameProtocol";
+export type SessionResponse = ResponseCode;
 
 export const isSessionId = (value: unknown): value is string =>
   typeof value === "string" &&

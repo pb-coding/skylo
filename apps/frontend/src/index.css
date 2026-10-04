@@ -1119,3 +1119,77 @@ button svg {
     height: 14px;
   }
 }
+
+/* Lobby and observation controls share the selected table's dark, quiet palette. */
+select { font: inherit; }
+select:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.lobby-room { align-items: start; padding-top: 100px; }
+.lobby-room .lobby-intro { position: sticky; top: 100px; }
+.lobby-field { margin-bottom: 16px; }
+.lobby-roles { border: 0; margin: 18px 0; padding: 0; }
+.lobby-roles legend { margin-bottom: 10px; font-size: 13px; }
+.lobby-role-options { display: flex; flex-wrap: wrap; gap: 18px; }
+.lobby-role-options label { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.lobby-role-options input { width: auto; min-height: 0; padding: 0; accent-color: var(--accent); }
+.lobby-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 18px 0; color: #b5ccca; font-size: 13px; }
+.lobby-meta .button { width: auto; margin: 0; padding: 8px 12px; font-size: 12px; }
+.lobby-participants { list-style: none; margin: 20px 0; padding: 0; }
+.lobby-player-row { padding: 14px 0; border-bottom: 1px solid #345756; }
+.lobby-player-identity { display: flex; align-items: center; gap: 12px; }
+.lobby-player-avatar,.lobby-bot-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.lobby-bot-avatar { display: flex; align-items: center; justify-content: center; color: var(--accent); background: #173f42; border: 1px solid #38645f; }
+.lobby-player-name { font-weight: 600; overflow-wrap: anywhere; }
+.lobby-player-badge { display: block; font-size: 11px; color: #a5c3bf; margin-top: 2px; }
+.lobby-bot-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.lobby-bot-controls select,.camera-focus-field select { background: #092729; color: #edf8f4; border: 1px solid #476969; border-radius: 8px; min-height: 44px; padding: 8px; max-width: 100%; min-width: 0; }
+.lobby-bot-controls .button { width: auto; margin: 0; padding: 8px 10px; font-size: 12px; }
+.lobby-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+.lobby-actions .button { margin: 0; width: auto; flex: 1; }
+.lobby-seed { margin-top: 20px; }
+.lobby-seed .muted { font-size: 12px; margin-top: 8px; }
+.lobby-spectators { margin-top: 18px; overflow-wrap: anywhere; font-size: 12px; color: #a5c3bf; line-height: 1.6; }
+.last-match-button { margin: -45px auto 16px; position: relative; z-index: 1; }
+.player-name { max-width: none; white-space: normal; overflow-wrap: anywhere; font-size: 15px; }
+.player-info { min-width: 0; }
+.rail-player { gap: 12px; }
+.rail-player-kind,.rail-player-closed { color: #99b4b1; font-size: 10px; margin-top: 3px; line-height: 1.4; }
+.rail-player-closed { color: #95ded4; }
+.table-player-label { display: block; color: #e9f6f0; background: #073536dd; border: 1px solid #426b6866; border-radius: 5px; padding: 3px 5px; font-size: 10px; max-width: 85px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.table-player-label.active { border-color: var(--accent); color: var(--accent); }
+.footer-controls { display: flex; gap: 8px; align-items: end; }
+.footer-popup { position: relative; }
+.footer-popup-right>.keyboard-panel { left: auto; right: 0; }
+.keyboard-panel { max-height: min(600px, calc(100dvh - 180px)); overflow-y: auto; overscroll-behavior: contain; }
+.footer-popup .keyboard-panel { width: min(360px, calc(100vw - var(--rail) - 48px)); }
+.footer-popup summary { min-height: 44px; }
+.match-actions-panel { display: flex; flex-direction: column; gap: 8px; }
+.match-actions-panel .button { width: 100%; font-size: 12px; min-height: 44px; padding: 10px; }
+.session-panel-meta { font-size: 12px; color: #b4cfca; overflow-wrap: anywhere; line-height: 1.6; margin-bottom: 12px; }
+.camera-focus-field { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; margin-bottom: 14px; }
+.camera-focus-field select { flex: 1; }
+.accessible-card-static { min-height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid #476969; border-radius: 6px; color: #e5f6ed; background: #153e3d; }
+.bot-explanation { font-size: 12px; line-height: 1.6; color: #c9e1d9; margin-top: 14px; }
+.bot-explanation label { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.bot-explanation input { accent-color: var(--accent); }
+.playback-controls { display: flex; flex-direction: column; gap: 12px; }
+.playback-heading { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+.playback-heading h2 { font-size: 16px; font-weight: 600; }
+.playback-status { font-size: 11px; color: #b9dbd1; }
+.tempo-slider { width: 100%; accent-color: var(--accent); min-height: 30px; }
+.tempo-endpoints { display: flex; justify-content: space-between; font-size: 11px; color: #a7c8be; }
+.playback-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.playback-actions .button { font-size: 11px; padding: 8px 12px; min-height: 44px; flex: 1; }
+.playback-help { font-size: 11px; color: #a7c8be; line-height: 1.6; }
+@media(max-width:640px) {
+  .lobby-room { padding-top: 100px; }
+  .lobby-room .lobby-intro { position: static; }
+  .lobby-room .lobby-intro h1 { font-size: 30px; }
+  .lobby-bot-controls select { flex: 1; }
+  .lobby-actions .button { font-size: 12px; padding: 10px; }
+  .footer-controls { gap: 5px; }
+  .footer-popup summary { font-size: 10px; padding: 8px; }
+  .footer-popup .keyboard-panel { position: fixed; left: 10px; right: 10px; bottom: max(64px, env(safe-area-inset-bottom)); width: auto; max-height: calc(100dvh - 220px); }
+  .player-name { font-size: 12px; }
+  .player-rail.scores-expanded .players-list { overflow-y: auto; max-height: calc(50dvh - 58px); }
+  .table-player-label { font-size: 8px; max-width: 65px; padding: 2px 3px; }
+}

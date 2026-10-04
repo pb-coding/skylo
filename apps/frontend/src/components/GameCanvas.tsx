@@ -5,9 +5,9 @@ import { PerspectiveCamera } from "three";
 import ErrorBoundary from "./ErrorBoundary";
 import PlayArea from "./PlayArea";
 import EnvironmentModels from "./EnvironmentModels";
-import { Game } from "../types/gameTypes";
+import type { GameView } from "../types/gameProtocol";
 
-type Props = { session: string; gameData: Game | null; isConnected: boolean; focusedCard?: [number, number] | null };
+type Props = { gameData: GameView; focusPlayerId: string; focusedSlotId?: string | null };
 function CameraFraming() {
   const { camera, size, invalidate } = useThree();
   useLayoutEffect(() => {
@@ -26,11 +26,10 @@ function LoadingStatus() {
   const { active } = useProgress();
   return active ? <p role="status" className="scene-loading">Dein Spieltisch wird vorbereitet …</p> : null;
 }
-export default function GameCanvas({ gameData, isConnected, focusedCard }: Props) {
-  if (!gameData) return null;
-  return <ErrorBoundary canLeaveSession>
-    <div style={{ width: "100%", height: "100%", pointerEvents: isConnected ? "auto" : "none" }}>
-      <Canvas fallback={<p role="alert">Dein Browser unterstützt keine 3D-Grafik. Bitte aktiviere WebGL oder verwende einen aktuellen Browser.</p>} frameloop="demand" dpr={[1, 1.5]} shadows camera={{ position: [0, 30, 28], fov: 45, near: 0.1, far: 150 }} gl={{ antialias: true, alpha: false }}>
+export default function GameCanvas({ gameData, focusPlayerId, focusedSlotId }: Props) {
+  return <ErrorBoundary key={gameData.matchId} canLeaveSession>
+    <div style={{ width: "100%", height: "100%" }}>
+      <Canvas fallback={<p role="alert">Dein Browser unterstützt keine 3D-Grafik. Die Karten kannst du auch über „Karten bedienen“ auswählen.</p>} frameloop="demand" dpr={[1, 1.5]} shadows camera={{ position: [0, 30, 28], fov: 45, near: 0.1, far: 150 }} gl={{ antialias: true, alpha: false }}>
         <color attach="background" args={["#112222"]} />
         <fog attach="fog" args={["#112222", 65, 125]} />
         <CameraFraming />
@@ -40,7 +39,7 @@ export default function GameCanvas({ gameData, isConnected, focusedCard }: Props
         <Suspense fallback={null}>
           <Environment files="/hdri/lebombo_1k.hdr" environmentIntensity={0.28} />
           <EnvironmentModels />
-          <PlayArea gameData={gameData} isConnected={isConnected} focusedCard={focusedCard} />
+          <PlayArea gameData={gameData} focusPlayerId={focusPlayerId} focusedSlotId={focusedSlotId} />
         </Suspense>
       </Canvas>
       <LoadingStatus />

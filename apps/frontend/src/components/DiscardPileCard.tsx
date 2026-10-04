@@ -1,6 +1,10 @@
-import { Card } from "../types/gameTypes";
+import type { Card } from "../types/gameProtocol";
 import CardMesh from "../scene/CardMesh";
-import { emitCardAction } from "../scene/gameActions";
-export default function DiscardPileCard({ value, enabled, position }: { value: Card; enabled: boolean; position: [number, number, number] }) {
-  return <CardMesh value={value} revealed position={position} enabled={enabled} animate={false} onActivate={() => emitCardAction("click-discard-pile", "discard pile")} />;
+import { useGameInteraction } from "../gameInteraction";
+export default function DiscardPileCard({ value, position }: { value: Card; position: [number, number, number] }) {
+  const interaction = useGameInteraction();
+  const action = interaction.legalActions.find((action) => action.type === "take-discard" || action.type === "discard");
+  const enabled = !!(action && interaction.allows(action));
+  return <CardMesh value={value} revealed position={position} enabled={enabled} animate={false}
+    onActivate={() => { if (action) interaction.sendAction(action); }} />;
 }

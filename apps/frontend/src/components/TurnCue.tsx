@@ -1,27 +1,37 @@
 import { CaretDownIcon } from "@phosphor-icons/react";
-import { Game } from "../types/gameTypes";
-import { getGameActions } from "../scene/gameActions";
-export default function TurnCue({ gameData, connected }: { gameData: Game; connected: boolean }) {
-  const { ownPlayer } = getGameActions(gameData, connected);
+import type { GameView } from "../types/gameProtocol";
+
+export default function TurnCue({ gameData, connected }: { gameData: GameView; connected: boolean }) {
+  const own = gameData.players.find((player) => player.id === gameData.ownPlayerId);
+  const active = gameData.players.find((player) => player.id === gameData.activePlayerId);
   const initial = gameData.phase === "reveal two cards";
-  const revealed = ownPlayer?.knownCardPositions.flat().filter(Boolean).length ?? 0;
-  const mine = Boolean(ownPlayer?.playersTurn);
-  const currentIndex = gameData.players.findIndex((player) => player.playersTurn);
-  let title = mine ? "Du bist dran" : `Spieler ${currentIndex + 1} ist dran`;
+  const revealed = own?.knownCardPositions.flat().filter(Boolean).length ?? 0;
+  const canAct = connected && gameData.legalActions.length > 0;
+  let title = canAct ? "Du bist dran" : active ? `${active.name} ist dran` : "Die Partie läuft";
   let instruction = "Warte auf den nächsten Spielzug.";
   if (!connected) { title = "Verbindung unterbrochen"; instruction = "Deine Aktionen sind vorübergehend gesperrt."; }
-  else if (initial) { title = revealed < 2 ? "Los geht’s" : "Gleich geht’s weiter"; instruction = revealed < 2 ? `Decke ${2 - revealed} ${revealed === 1 ? "Karte" : "Karten"} auf` : "Die anderen decken ihre Karten auf."; }
-  else if (gameData.phase === "new round") { title = "Runde abgeschlossen"; instruction = "Die Punkte sind gezählt. Bereit für die nächste Runde?"; }
   else if (gameData.phase === "game ended") {
     const winners = gameData.players.filter((player) => player.place === 1);
-    const winnerNames = winners.map((player) => player.socketId === ownPlayer?.socketId ? "Du" : `Spieler ${gameData.players.indexOf(player) + 1}`);
+    const names = winners.map((player) => player.id === own?.id ? "Du" : player.name);
     title = "Partie beendet";
-    instruction = winnerNames.length === 1 ? `${winnerNames[0]} ${winnerNames[0] === "Du" ? "hast" : "hat"} gewonnen!` : winnerNames.length > 1 ? `${winnerNames.join(" und ")} teilen sich den Sieg!` : "Die Partie wurde beendet.";
-  }
-  else if (mine) {
+    instruction = gameData.endReason === "aborted" ? "Die Partie wurde beendet. Der bisherige Verlauf steht im Protokoll."
+      : names.length === 1 ? `${names[0]} ${names[0] === "Du" ? "hast" : "hat"} gewonnen!`
+      : names.length > 1 ? `${names.join(" und ")} teilen sich den Sieg!` : "Die Partie wurde beendet.";
+  } else if (gameData.phase === "new round") {
+    title = "Runde abgeschlossen";
+    instruction = gameData.players.every((player) => player.kind === "bot") ? "Die nächste Runde startet automatisch." : "Ein Spieler kann die nächste Runde starten.";
+  } else if (initial) {
+    if (own) { title = revealed < 2 ? "Los geht’s" : "Gleich geht’s weiter"; instruction = revealed < 2 ? `Decke ${2 - revealed} ${revealed === 1 ? "Karte" : "Karten"} auf` : "Die anderen decken ihre Karten auf."; }
+    else { title = "Los geht’s"; instruction = "Die Spieler decken ihre Startkarten auf."; }
+  } else if (canAct) {
     if (gameData.phase === "pick up card") instruction = "Ziehe eine Karte oder nimm die Ablage";
-    if (gameData.phase === "place card") instruction = ownPlayer?.tookDispiledCard ? `Tausche die ${ownPlayer.cardCache} gegen eine deiner Karten` : `Tausche die ${ownPlayer?.cardCache} oder lege sie ab`;
+    if (gameData.phase === "place card") instruction = own?.tookDispiledCard ? `Tausche die ${own.cardCache} gegen eine deiner Karten` : `Tausche die ${own?.cardCache} oder lege sie ab`;
     if (gameData.phase === "reveal card") instruction = "Decke eine deiner verdeckten Karten auf";
+  } else if (active) {
+    if (gameData.phase === "pick up card") instruction = "Karte ziehen oder Ablage nehmen";
+    if (gameData.phase === "place card") instruction = "Eine Karte tauschen oder abwerfen";
+    if (gameData.phase === "reveal card") instruction = "Eine Karte aufdecken";
   }
-  return <div className={`turn-cue ${initial || mine ? "your-turn" : ""}`} role="status" aria-live="polite"><strong>{title}</strong><span>{instruction}</span>{(initial && revealed < 2 || mine && gameData.phase === "pick up card") && connected && <CaretDownIcon className="cue-arrow" size={18} weight="fill" aria-hidden="true" />}</div>;
+  if (connected && gameData.playback.paused && gameData.phase !== "game ended") instruction += " · Bot-Aktionen pausiert";
+  return <div className={`turn-cue ${canAct ? "your-turn" : ""}`} role="status" aria-live="polite"><strong>{title}</strong><span>{instruction}</span>{canAct && (initial || gameData.phase === "pick up card") && <CaretDownIcon className="cue-arrow" size={18} weight="fill" aria-hidden="true" />}</div>;
 }

@@ -2,7 +2,7 @@ import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { Microphone, MicrophoneSlash } from "@phosphor-icons/react";
 import { socket } from "../socket";
 
-const VoiceChat: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string }> = ({ session, isConnected, playerCount, hostId }) => {
+const VoiceChat: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string; ownParticipantId: string }> = ({ session, isConnected, playerCount, hostId, ownParticipantId }) => {
   const [enabled, setEnabled] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +44,7 @@ const VoiceChat: FC<{ session: string; isConnected: boolean; playerCount: number
       const stillCurrent = () => peer.current === current && generation.current === offerGeneration;
       try {
         const collision = makingOffer.current || current.signalingState !== "stable";
-        const polite = socket.id !== hostId;
+        const polite = ownParticipantId !== hostId;
         ignoreOffer.current = !polite && collision;
         if (ignoreOffer.current) {
           // The guest may have enabled its microphone after our first offer.
@@ -91,7 +91,7 @@ const VoiceChat: FC<{ session: string; isConnected: boolean; playerCount: number
       socket.off("add-ice-candidate", onCandidate);
       stop();
     };
-  }, [session, isConnected, hostId, stop]);
+  }, [session, isConnected, hostId, ownParticipantId, stop]);
 
   useEffect(() => { if (playerCount > 2) stop(); }, [playerCount, stop]);
 

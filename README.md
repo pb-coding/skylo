@@ -25,9 +25,19 @@ Frontend: port 5173. Backend: port 3001. These local addresses are for developme
 npm run check
 ```
 
-Both apps have their own lockfiles and install dependencies independently. `npm run check` runs frontend lint, backend regression and Socket.IO integration tests, and both builds. CI and deployment use the same quality workflow; failed checks or high/critical runtime dependency advisories block deployment.
+Both apps have their own lockfiles and install dependencies independently. `npm run check` verifies the generated game protocol, runs frontend lint, backend rule/bot/runtime/recording and Socket.IO integration tests, and builds both apps. CI and deployment use the same quality workflow; failed checks or high/critical runtime dependency advisories block deployment.
 
-Games support 2–8 players. The first participant hosts the session and can start a new game. Refreshing or disconnecting still ends participation; session resume and durable game storage are planned separately. See [phase 1 verification](docs/phase-1.md) and the [improvement plan](docs/improvement-plan.md).
+Games support 2–8 human or bot players and up to 32 spectators. Join as a player or spectator; the first participant hosts the session. Hosts can configure rule-based bots (easy, medium, hard) or random reference bots, start bot-only games, and change the delay between bot actions during play. Pause, single-action and single-turn controls also belong to the host. Spectators can join an ongoing game without occupying a seat.
+
+Completed matches have a downloadable JSON recording and an offline replay checker. See [bots, spectators and replay](docs/bots.md) for usage, timing semantics, limits and the strategy extension API. Human refresh/disconnect still ends participation and aborts the current match; spectator disconnect does not end bot play. Full player resume and durable storage are separate future work. The [phase 1 verification](docs/phase-1.md) and [improvement plan](docs/improvement-plan.md) describe the earlier baseline.
+
+With the local servers running, browser integration checks use an installed Chromium executable:
+
+```sh
+SKYLO_BROWSER_URL=http://localhost:5173 npm run browser:check
+```
+
+The check creates screenshots, a report and a downloaded replay in `../skylo-verification`. Set `CHROMIUM_PATH` or `SKYLO_VERIFICATION_DIR` to select another browser or output directory.
 
 The selected variant 3 keeps the interactive 3D table and adds a German lobby, invitation links, responsive score rail, turn cues and keyboard/touch card controls. See the [design comparison](design-qa.md) and [desktop/mobile screenshots](docs/design). Two-player voice is supported; group voice and real-network audio verification remain planned.
 

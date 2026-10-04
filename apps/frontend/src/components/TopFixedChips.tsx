@@ -1,7 +1,7 @@
 import { FC, useState } from "react";
 import { Copy, Check, UserPlus } from "@phosphor-icons/react";
 import VoiceChat from "./VoiceChat";
-const TopFixedChips: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string }> = ({ session, isConnected, playerCount, hostId }) => {
+const TopFixedChips: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string; ownParticipantId: string }> = ({ session, isConnected, playerCount, hostId, ownParticipantId }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
@@ -23,7 +23,7 @@ const TopFixedChips: FC<{ session: string; isConnected: boolean; playerCount: nu
         {copyError && <p role="status">Bitte markiere den Link und kopiere ihn manuell.</p>}
       </section>}
     </div>
-    <VoiceChat key={session} session={session} isConnected={isConnected} playerCount={playerCount} hostId={hostId} />
+    <VoiceChat key={session} session={session} isConnected={isConnected} playerCount={playerCount} hostId={hostId} ownParticipantId={ownParticipantId} />
   </header>;
 };
 export default TopFixedChips;

@@ -1,13 +1,12 @@
 import PlayerDecks from "./PlayerDecks";
-import { Game } from "../types/gameTypes";
-import { getGameActions } from "../scene/gameActions";
 import CardStackStaple from "./CardStackStaple";
 import DiscardPile from "./DiscardPile";
-export default function PlayArea({ gameData, isConnected, focusedCard }: { gameData: Game; isConnected: boolean; focusedCard?: [number, number] | null }) {
-  const actions = getGameActions(gameData, isConnected);
+import type { GameView } from "../types/gameProtocol";
+
+export default function PlayArea({ gameData, focusPlayerId, focusedSlotId }: { gameData: GameView; focusPlayerId: string; focusedSlotId?: string | null }) {
   return <>
-    <PlayerDecks gameData={gameData} isConnected={isConnected} focusedCard={focusedCard} />
-    <CardStackStaple cardStackData={gameData.cardStack} enabled={actions.canDraw} />
-    <DiscardPile discardPileData={gameData.discardPile} enabled={actions.canDiscard} />
+    <PlayerDecks gameData={gameData} focusPlayerId={focusPlayerId} focusedSlotId={focusedSlotId} />
+    <CardStackStaple cardStackData={gameData.cardStack} />
+    <DiscardPile discardPileData={gameData.discardPile} />
   </>;
 }
