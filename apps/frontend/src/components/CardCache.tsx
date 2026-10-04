@@ -1,11 +1,6 @@
-import { useEffect, useMemo } from "react";
-import { Vector3 } from "three";
-import { createCard } from "../objects/cards";
-import type { Card } from "../types/gameProtocol";
-
-export default function CardCache({ value, position }: { value: Card | null; position: [number, number, number] }) {
-  const [x, y, z] = position;
-  const card = useMemo(() => value === null ? null : createCard(value, new Vector3(x, y, z), true), [value, x, y, z]);
-  useEffect(() => () => card?.material.forEach((material) => material.dispose()), [card]);
-  return card ? <primitive object={card} dispose={null} /> : null;
+import type { PlayerView } from "../types/gameProtocol";
+import CardMesh from "../scene/CardMesh";
+export default function CardCache({ playerData }: { playerData: PlayerView }) {
+  if (playerData.cardCache === null) return null;
+  return <CardMesh value={playerData.cardCache} revealed position={[6.3, 6.22, 0.5]} />;
 }

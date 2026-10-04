@@ -103,11 +103,38 @@ class CDP {
   }
 }
 
+async function reveal(page, target) {
+  return page.evaluate(({ selector, label }) => {
+    const element = selector ? document.querySelector(selector)
+      : [...document.querySelectorAll('button')].find(button => button.textContent.trim() === label);
+    if (!element) return false;
+    const ancestors = [];
+    let parent = element.parentElement;
+    while (parent) { if (parent.tagName === 'DETAILS') ancestors.unshift(parent); parent = parent.parentElement; }
+    for (const details of ancestors) if (!details.open) details.querySelector('summary').click();
+    element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+    const foreground = document.elementFromPoint(x, y);
+    return !element.disabled && rect.width > 0 && rect.height > 0 && x >= 0 && x < innerWidth && y >= 0 && y < innerHeight
+      && !!foreground && (foreground === element || element.contains(foreground)) ? { x, y } : false;
+  }, target);
+}
 async function click(page, label) {
-  await until(() => page.evaluate(label => [...document.querySelectorAll('button')].some(button => button.textContent.trim() === label && !button.disabled), label), `Button not available: ${label}`);
-  return page.evaluate(label => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === label && !button.disabled).click(), label);
+  const point = await until(() => reveal(page, { label }), `Button not visible/reachable: ${label}`);
+  await clickPoint(page, point);
+}
+async function clickSelector(page, selector) {
+  const point = await until(() => reveal(page, { selector }), `Control not visible/reachable: ${selector}`);
+  await clickPoint(page, point);
+}
+async function clickPoint(page, point) {
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point }, page.sessionId);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, ...point }, page.sessionId);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, ...point }, page.sessionId);
 }
 async function input(page, selector, value) {
+  await until(() => reveal(page, { selector }), `Input not visible/reachable: ${selector}`);
   return page.evaluate(({ selector, value }) => {
     const element = document.querySelector(selector);
     if (!element) throw new Error(`Missing input ${selector}`);
@@ -121,7 +148,7 @@ async function join(page, sessionId, role, name) {
   await until(() => page.evaluate(() => !!document.querySelector('#player-name') && !document.querySelector('#session-name').disabled), 'Join form is not ready');
   await input(page, '#player-name', name);
   await input(page, '#session-name', sessionId);
-  await page.evaluate(role => document.querySelector(`input[name="join-role"][value="${role}"]`).click(), role);
+  await clickSelector(page, `input[name="join-role"][value="${role}"]`);
   await click(page, 'Session beitreten');
   await until(() => page.evaluate(sessionId => window.__skyloCheck.session?.sessionId === sessionId, sessionId), 'Session join failed');
 }
@@ -183,6 +210,7 @@ try {
   assert.equal((await state(viewer)).game.matchId, before.matchId);
   assert.equal((await state(viewer)).session.canControl, false);
   assert.equal(await viewer.evaluate(() => [...document.querySelectorAll('button')].some(button => button.textContent === 'Fortsetzen')), false);
+  await viewer.evaluate(() => [...document.querySelectorAll('summary')].find(summary => summary.textContent.trim() === 'Bot-Tempo').click());
   assert.equal(await viewer.evaluate(() => document.querySelector('#bot-tempo').disabled), true);
   assert.equal(await ack(viewer, 'playback-control', { sessionId: botSession, command: { type: 'resume' } }), 'error:host');
   assert.equal(await ack(viewer, 'game-action', { sessionId: botSession, matchId: before.matchId, requestId: 'viewer-action', decisionId: 'invalid', action: { type: 'draw' } }), 'error:membership');
@@ -211,8 +239,9 @@ try {
   await click(host, 'Pause');
   await until(async () => (await state(host)).game.playback.paused, 'Fast game did not pause');
   const game = (await state(host)).game;
-  await input(host, 'select', game.players[7].id);
-  assert.equal(await host.evaluate(() => document.querySelector('select').value), game.players[7].id);
+  await input(host, '.camera-focus-field select', game.players[7].id);
+  assert.equal(await host.evaluate(() => document.querySelector('.camera-focus-field select').value), game.players[7].id);
+  await host.evaluate(() => document.querySelectorAll('details[open]').forEach(details => details.querySelector('summary').click()));
   await host.screenshot('02-eight-bots-viewer-desktop.png');
   await viewer.viewport(390, 844);
   await viewer.screenshot('03-eight-bots-viewer-mobile.png');
@@ -252,12 +281,12 @@ try {
   await until(async () => (await state(human)).session.players.length === 2, 'Mixed lobby bot did not appear');
   await click(human, 'Partie starten');
   await until(async () => (await state(human)).game?.legalActions.some(action => action.type === 'reveal'), 'Initial human actions missing');
-  await human.evaluate(() => document.querySelector('button[aria-label*="Aufdecken"]').click());
+  await clickSelector(human, 'button[aria-label*="Aufdecken"]');
   await until(async () => {
     const view = (await state(human)).game;
     return view.players.find(player => player.id === view.ownPlayerId)?.knownCardPositions.flat().filter(Boolean).length === 1;
   }, 'Human reveal did not apply');
-  await human.evaluate(() => document.querySelector('button[aria-label*="Aufdecken"]').click());
+  await clickSelector(human, 'button[aria-label*="Aufdecken"]');
   await click(human, 'Maximales Tempo');
   await until(async () => (await state(human)).game.phase !== 'reveal two cards', 'Mixed initial phase did not finish');
   let humanActions = 0;
@@ -269,7 +298,7 @@ try {
     const oldRevision = view.revision;
     const plainAction = view.legalActions.find(action => action.type === 'draw' || action.type === 'discard' || action.type === 'next-round');
     if (plainAction) await click(human, { draw: 'Karte ziehen', discard: 'Gezogene Karte abwerfen', 'next-round': 'Nächste Runde starten' }[plainAction.type]);
-    else await human.evaluate(() => document.querySelector('button[aria-label*="Tauschen"], button[aria-label*="Aufdecken"]').click());
+    else await clickSelector(human, 'button[aria-label*="Tauschen"], button[aria-label*="Aufdecken"]');
     await until(async () => (await state(human)).game.revision > oldRevision, 'Human action did not apply');
     humanActions++;
   }

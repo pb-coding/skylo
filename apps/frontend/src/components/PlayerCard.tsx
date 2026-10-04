@@ -1,20 +1,12 @@
-import { useMemo, useEffect } from "react";
-import { Vector3 } from "three";
-import { createCard } from "../objects/cards";
+import CardMesh from "../scene/CardMesh";
 import { useGameInteraction } from "../gameInteraction";
-import type { Card, GameAction } from "../types/gameProtocol";
+import type { Card } from "../types/gameProtocol";
 
-type Props = { value: Card | null; slotId: string; faceUp: boolean; position: [number, number, number]; owned: boolean };
-
-export default function PlayerCard({ value, slotId, faceUp, position, owned }: Props) {
-  const [x, y, z] = position;
-  const card = useMemo(() => createCard(value, new Vector3(x, y, z), faceUp), [value, x, y, z, faceUp]);
-  useEffect(() => () => card.material.forEach((material) => material.dispose()), [card]);
+type Props = { value: Card | null; revealed: boolean; slotId: string; columnIndex: number; cardIndex: number; owned: boolean; columnCount?: number; focused?: boolean };
+export default function PlayerCard({ value, revealed, slotId, columnIndex, cardIndex, owned, focused, columnCount = 4 }: Props) {
   const interaction = useGameInteraction();
-  const action = interaction.legalActions.find((action): action is GameAction & { slotId: string } =>
-    "slotId" in action && action.slotId === slotId);
-  return <primitive object={card} dispose={null} onClick={(event: { stopPropagation: () => void }) => {
-    event.stopPropagation();
-    if (owned && action && interaction.allows(action)) interaction.sendAction(action);
-  }} />;
+  const action = interaction.legalActions.find((action) => "slotId" in action && action.slotId === slotId);
+  const enabled = !!(owned && action && interaction.allows(action));
+  return <CardMesh value={value} revealed={revealed} position={[(columnIndex - (columnCount - 1) / 2) * 3.05, 0, (cardIndex - 1) * 4.1]} enabled={enabled} focused={focused}
+    onActivate={() => { if (action) interaction.sendAction(action); }} />;
 }

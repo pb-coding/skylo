@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { socket } from "./socket";
-import GameCanvas from "./components/GameCanvas";
+const GameCanvas = lazy(() => import("./components/GameCanvas"));
 import { Footer } from "./components/Footer";
 import { SessionManager } from "./components/SessionManager";
 import MessageDisplay from "./components/MessageDisplay";
 import TopFixedChips from "./components/TopFixedChips";
+import TurnCue from "./components/TurnCue";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { GameInteractionContext, sameAction } from "./gameInteraction";
 import { errorMessage, responseMessage, sessionCommand } from "./sessionCommands";
 import type { ActionRequest, GameAction, GameView, SessionView } from "./types/gameProtocol";
@@ -18,6 +20,7 @@ export default function App() {
   const [actionPending, setActionPending] = useState(false);
   const [focusPlayerId, setFocusPlayerId] = useState("");
   const [lobbyOpen, setLobbyOpen] = useState(false);
+  const [focusedSlotId, setFocusedSlotId] = useState<string | null>(null);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>();
   const disconnectedSinceConnect = useRef(false);
   const actionLock = useRef(false);
@@ -34,6 +37,7 @@ export default function App() {
     setGameData(null);
     setFocusPlayerId("");
     setLobbyOpen(false);
+    setFocusedSlotId(null);
     setActionPending(false);
     actionLock.current = false;
   }
@@ -103,24 +107,31 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-screen bg-teal-900 font-theme text-white">
-      {!isConnected && <p role="status" className="relative z-30 bg-teal-950 text-center p-3">Verbindung zum Spielserver unterbrochen. Aktionen sind vorübergehend gesperrt.</p>}
+    <div className={`skylo-app ${gameData && !lobbyOpen ? "in-game" : "in-lobby"}`}>
+      {!isConnected && <p role="status" className="connection-banner">Verbindung zum Spielserver unterbrochen. Aktionen sind vorübergehend gesperrt.</p>}
       {(!gameData || lobbyOpen) && <SessionManager isConnected={isConnected} sessionId={sessionId}
         state={sessionState} onJoined={setSessionId} onLeft={clearSession} />}
-      {lobbyOpen && gameData && <button className="block mx-auto mb-6 border rounded-lg px-4 py-2" onClick={() => setLobbyOpen(false)}>Letzte Partie anzeigen</button>}
+      {lobbyOpen && gameData && <button className="text-button last-match-button" onClick={() => setLobbyOpen(false)}>Letzte Partie anzeigen</button>}
       <GameInteractionContext.Provider value={{
         legalActions: gameData?.legalActions || [], enabled: isConnected && !actionPending,
         sendAction,
       }}>
         {gameData && !lobbyOpen && <>
-          <GameCanvas gameData={gameData} focusPlayerId={focusPlayerId} />
+          <main className="game-stage" aria-label="3D-Spieltisch">
+            <ErrorBoundary canLeaveSession><Suspense fallback={<p role="status" className="scene-loading">Dein Spieltisch wird vorbereitet …</p>}>
+              <GameCanvas gameData={gameData} focusPlayerId={focusPlayerId} focusedSlotId={focusedSlotId} />
+            </Suspense></ErrorBoundary>
+            <TurnCue gameData={gameData} connected={isConnected} />
+          </main>
           <Footer isConnected={isConnected} sessionId={sessionId} state={sessionState}
             gameData={gameData} focusPlayerId={focusPlayerId} onFocus={setFocusPlayerId}
-            onLeft={clearSession} onMessage={showMessage} onLobby={() => setLobbyOpen(true)} />
+            onLeft={clearSession} onMessage={showMessage} onLobby={() => setLobbyOpen(true)} onFocusCard={setFocusedSlotId} />
         </>}
       </GameInteractionContext.Provider>
       <MessageDisplay message={message} />
-      <TopFixedChips session={sessionId} />
-    </main>
+      <TopFixedChips key={sessionId} session={sessionId} isConnected={isConnected}
+        playerCount={sessionState?.participants.length || 0} hostId={sessionState?.hostId || ""}
+        ownParticipantId={sessionState?.ownParticipantId || ""} />
+    </div>
   );
 }

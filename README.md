@@ -39,6 +39,8 @@ SKYLO_BROWSER_URL=http://localhost:5173 npm run browser:check
 
 The check creates screenshots, a report and a downloaded replay in `../skylo-verification`. Set `CHROMIUM_PATH` or `SKYLO_VERIFICATION_DIR` to select another browser or output directory.
 
+The selected variant 3 keeps the interactive 3D table and adds a German lobby, invitation links, responsive score rail, turn cues and keyboard/touch card controls. See the [design comparison](design-qa.md) and [desktop/mobile screenshots](docs/design). Two-player voice is supported; group voice and real-network audio verification remain planned.
+
 ## Environment and deployment
 
 `npm run setup` creates ignored local `.env` files from `.env.example` without overwriting existing settings. Never commit actual secrets. Previously tracked `.env` files are removed from the new tree but remain in imported history; inspect and rotate any historical credentials before publication if applicable.

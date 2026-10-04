@@ -1,50 +1,48 @@
-import { useEffect, Suspense } from "react";
+import { Suspense, useLayoutEffect } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, useProgress } from "@react-three/drei";
+import { Environment, useProgress } from "@react-three/drei";
+import { PerspectiveCamera } from "three";
 import ErrorBoundary from "./ErrorBoundary";
 import PlayArea from "./PlayArea";
 import EnvironmentModels from "./EnvironmentModels";
 import type { GameView } from "../types/gameProtocol";
 
-const ENVIRONMENT = import.meta.env.VITE_ENVIRONMENT || "";
-
-function LoadingStatus() {
-  const { active } = useProgress();
-  return active ? <p role="status" className="absolute inset-x-0 top-4 z-10 text-center text-white bg-teal-900 p-2">3D-Spielwelt wird geladen …</p> : null;
-}
-
-function CameraFit({ count }: { count: number }) {
-  const { camera, size } = useThree();
-  useEffect(() => {
-    const rows = Math.ceil(count / (count > 2 ? 2 : 1));
-    const depth = rows * 16 + 8;
-    const width = count > 2 ? 50 : 26;
-    const aspect = size.width / Math.max(size.height, 1);
-    const distance = Math.max(depth, width / aspect) * 0.9;
-    camera.position.set(0, 20 + distance, distance * 0.15);
-    camera.lookAt(0, 20, 0);
-    camera.updateProjectionMatrix();
-  }, [camera, count, size.height, size.width]);
+type Props = { gameData: GameView; focusPlayerId: string; focusedSlotId?: string | null };
+function CameraFraming() {
+  const { camera, size, invalidate } = useThree();
+  useLayoutEffect(() => {
+    const perspective = camera as PerspectiveCamera;
+    const mobile = size.width < 600;
+    perspective.position.set(0, mobile ? 37 : 30, mobile ? 31 : 28);
+    perspective.lookAt(0, 6, 3);
+    perspective.fov = mobile ? 50 : 45;
+    perspective.aspect = size.width / size.height;
+    perspective.updateProjectionMatrix();
+    invalidate();
+  }, [camera, size, invalidate]);
   return null;
 }
-
-export default function GameCanvas({ gameData, focusPlayerId }: { gameData: GameView; focusPlayerId: string }) {
-  return (
-    <ErrorBoundary key={gameData.matchId} canLeaveSession>
-      <div className="relative w-full" style={{ height: "clamp(320px, 54vh, 620px)" }} aria-label="Dreidimensionale Spielansicht">
-        <Canvas fallback={<p role="alert" className="p-6">Dein Browser unterstützt keine 3D-Grafik. Die Karten und Aktionen stehen auch unter der Spielansicht zur Verfügung.</p>}
-          camera={{ position: [0, 70, 10], fov: 65, near: 0.1, far: 1000 }}>
-          <CameraFit count={gameData.playerCount} />
-          <ambientLight intensity={0.6} />
-          <Suspense fallback={null}>
-            <Environment files="/hdri/lebombo_1k.hdr" />
-            <EnvironmentModels playerCount={gameData.playerCount} />
-          </Suspense>
-          {ENVIRONMENT === "local" && <OrbitControls target={[0, 20, 0]} />}
-          <PlayArea gameData={gameData} focusPlayerId={focusPlayerId} />
-        </Canvas>
-        <LoadingStatus />
-      </div>
-    </ErrorBoundary>
-  );
+function LoadingStatus() {
+  const { active } = useProgress();
+  return active ? <p role="status" className="scene-loading">Dein Spieltisch wird vorbereitet …</p> : null;
+}
+export default function GameCanvas({ gameData, focusPlayerId, focusedSlotId }: Props) {
+  return <ErrorBoundary key={gameData.matchId} canLeaveSession>
+    <div style={{ width: "100%", height: "100%" }}>
+      <Canvas fallback={<p role="alert">Dein Browser unterstützt keine 3D-Grafik. Die Karten kannst du auch über „Karten bedienen“ auswählen.</p>} frameloop="demand" dpr={[1, 1.5]} shadows camera={{ position: [0, 30, 28], fov: 45, near: 0.1, far: 150 }} gl={{ antialias: true, alpha: false }}>
+        <color attach="background" args={["#112222"]} />
+        <fog attach="fog" args={["#112222", 65, 125]} />
+        <CameraFraming />
+        <ambientLight intensity={0.2} color="#a2d4cf" />
+        <directionalLight position={[-12, 35, 15]} intensity={1.1} color="#ffe9c3" castShadow shadow-mapSize={[1024, 1024]} shadow-camera-left={-35} shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35} shadow-bias={-0.001} />
+        <spotLight position={[0, 30, 6]} angle={0.75} penumbra={0.45} intensity={3000} distance={60} color="#cbeefa" />
+        <Suspense fallback={null}>
+          <Environment files="/hdri/lebombo_1k.hdr" environmentIntensity={0.28} />
+          <EnvironmentModels />
+          <PlayArea gameData={gameData} focusPlayerId={focusPlayerId} focusedSlotId={focusedSlotId} />
+        </Suspense>
+      </Canvas>
+      <LoadingStatus />
+    </div>
+  </ErrorBoundary>;
 }
