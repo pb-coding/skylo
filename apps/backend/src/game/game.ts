@@ -3,11 +3,12 @@ import { CardStack, ConcealableCard } from "./card";
 import { Card, ConcealableCardStack } from "./card";
 import { Socket } from "socket.io";
 import { io } from "../server";
+import { sessionRoom } from "./sessionRoom";
 
 type PlayerSocketSet = Set<string>;
 
 type PlayerActionEventName = string;
-type PlayerActionCallback = (playerSocketId: string, data: any) => void;
+type PlayerActionCallback = (playerSocketId: string, data: unknown) => boolean;
 
 type ExpectedPlayerActions = Array<
   [PlayerActionEventName, PlayerActionCallback]
@@ -44,6 +45,10 @@ const gamePhase = {
 };
 
 export class Game {
+  private disposed = false;
+  private looping = false;
+  private pendingWaits = new Set<() => void>();
+  private actionWindows = new Map<string, { since: number; count: number }>();
   socket: Socket;
   sessionId: string;
   playerCount: number;
@@ -89,6 +94,7 @@ export class Game {
   }
 
   initializeNewRound(startOver: boolean = false) {
+    if (this.disposed || this.phase === gamePhase.gameEnded) return;
     this.round = startOver ? 1 : this.round + 1;
     this.cardStack = new CardStack();
     this.cardStack.shuffleCards();
@@ -108,49 +114,61 @@ export class Game {
   }
 
   async gameLoop() {
-    console.log("Game started!");
-    this.sendObfuscatedGameUpdate();
-    while (this.phase !== gamePhase.gameEnded) {
-      this.checkForFullRevealedCards();
-      this.removeThreeOfAKinds();
-      switch (this.phase) {
-        case gamePhase.revealTwoCards:
-          console.log("\nGame phase: revealTwoCards");
-          await this.revealInitialCards();
-          break;
-        case gamePhase.pickUpCard:
-          console.log("\nGame phase: pickUpCard");
-          await this.pickUpCard();
-          break;
-        case gamePhase.placeCard:
-          console.log("\nGame phase: placeCard");
-          await this.placeCard();
-          break;
-        case gamePhase.revealCard:
-          console.log("\nGame phase: revealCard");
-          await this.revealCard();
-          break;
-        case gamePhase.revealedLastCard:
-          console.log("\nGame phase: revealedLastCard");
-          await this.revealedLastCard();
-          break;
-        case gamePhase.newRound:
-          console.log("\nGame phase: newRound");
-          this.checkIfPointLimitReached();
-          await this.nextRound();
-          break;
-        default:
-          console.log("\nGame Ended.");
-          break;
+    if (this.looping || this.disposed) return;
+    this.looping = true;
+    try {
+      console.log("Game started!");
+      this.sendObfuscatedGameUpdate();
+      while (this.phase !== gamePhase.gameEnded) {
+        this.checkForFullRevealedCards();
+        this.removeThreeOfAKinds();
+        switch (this.phase) {
+          case gamePhase.revealTwoCards:
+            console.log("\nGame phase: revealTwoCards");
+            await this.revealInitialCards();
+            break;
+          case gamePhase.pickUpCard:
+            console.log("\nGame phase: pickUpCard");
+            await this.pickUpCard();
+            break;
+          case gamePhase.placeCard:
+            console.log("\nGame phase: placeCard");
+            await this.placeCard();
+            break;
+          case gamePhase.revealCard:
+            console.log("\nGame phase: revealCard");
+            await this.revealCard();
+            break;
+          case gamePhase.revealedLastCard:
+            console.log("\nGame phase: revealedLastCard");
+            await this.revealedLastCard();
+            break;
+          case gamePhase.newRound:
+            console.log("\nGame phase: newRound");
+            this.checkIfPointLimitReached();
+            if (!this.disposed) await this.nextRound();
+            break;
+          default:
+            console.log("\nGame Ended.");
+            this.dispose();
+            break;
+        }
       }
+    } catch (error) {
+      console.error("Game loop failed", error);
+      this.dispose();
+      this.sendNullGameUpdate();
+    } finally {
+      this.looping = false;
     }
   }
 
   // Game Phases
 
   async revealInitialCards() {
+    if (this.disposed) return;
     this.sendMessageToAllPlayers("Reveal two cards");
-    while (!this.allPlayersRevealedInitialCards()) {
+    while (!this.disposed && !this.allPlayersRevealedInitialCards()) {
       const playersWithRevealedInitialCards =
         this.getPlayersWithRevealedInitialCards();
       const playersWithUnrevealedInitialCards = this.players.filter(
@@ -164,12 +182,14 @@ export class Game {
         playersSocketIds
       );
     }
+    if (this.disposed) return;
     this.setInitialPlayersTurn();
     this.phase = gamePhase.pickUpCard;
     this.sendObfuscatedGameUpdate();
   }
 
   async pickUpCard() {
+    if (this.disposed) return;
     const playerOnTurn = this.getPlayersTurn();
     if (playerOnTurn.closedRound) {
       this.phase = gamePhase.revealedLastCard;
@@ -177,18 +197,20 @@ export class Game {
       return;
     }
     console.log(`Waiting for ${playerOnTurn.name} to pick up card`);
-    await this.waitForPlayerActions(
+    const action = await this.waitForPlayerActions(
       [
         ["draw-from-card-stack", this.drawCardAction.bind(this)],
         ["click-discard-pile", this.takeDiscardPileAction.bind(this)],
       ],
       [playerOnTurn.socketId]
     );
+    if (!action || this.disposed) return;
     this.phase = gamePhase.placeCard;
     this.sendObfuscatedGameUpdate();
   }
 
   async placeCard() {
+    if (this.disposed) return;
     const playerOnTurn = this.getPlayersTurn();
     console.log(`Waiting for ${playerOnTurn.name} to place card`);
 
@@ -201,29 +223,35 @@ export class Game {
         this.discardCardToPileAction.bind(this),
       ]);
     }
-    playerOnTurn.tookDispiledCard = false;
     await this.waitForPlayerActions(expectedActions, [playerOnTurn.socketId]);
+    if (this.disposed) return;
     this.sendObfuscatedGameUpdate();
   }
 
   async revealCard() {
+    if (this.disposed) return;
     const playerOnTurn = this.getPlayersTurn();
     console.log(`Waiting for ${playerOnTurn.name} to reveal a card`);
 
     const numberOfRevealedCards = playerOnTurn.getRevealedCardCount();
     // ensures that the player does not select an already revealed card
-    while (playerOnTurn.getRevealedCardCount() <= numberOfRevealedCards) {
+    while (
+      !this.disposed &&
+      playerOnTurn.getRevealedCardCount() <= numberOfRevealedCards
+    ) {
       await this.waitForPlayerActions(
         [["click-card", this.revealCardAction.bind(this)]],
         [playerOnTurn.socketId]
       );
     }
+    if (this.disposed) return;
     this.nextPlayersTurn();
     this.phase = gamePhase.pickUpCard;
     this.sendObfuscatedGameUpdate();
   }
 
   async revealedLastCard() {
+    if (this.disposed) return;
     this.revealAllCards();
     this.evaluateAndSavePoints();
     this.phase = gamePhase.newRound;
@@ -232,6 +260,7 @@ export class Game {
   }
 
   async nextRound() {
+    if (this.disposed) return;
     const playerSocketIds = this.players.map((player) => player.socketId);
     await this.waitForPlayerActions(
       [["next-round", this.nextRoundAction.bind(this)]],
@@ -241,139 +270,170 @@ export class Game {
 
   // Player Action Callbacks
 
-  revealCardAction(playerSocketId: string, cardPosition: CardPosition) {
-    const player = this.getPlayerBySocketId(playerSocketId);
-    // ugly type checking - typescript is not able to check the type of the data sent by the client if its a type alias :(
-    if (!(cardPosition instanceof Array)) return;
-    if (cardPosition.length !== 2) return;
-    if (cardPosition.some((position) => typeof position !== "number")) return;
+  private actionPlayer(playerSocketId: string, phase: string): Player | undefined {
+    if (this.disposed || this.phase !== phase) return;
+    const player = this.players.find((candidate) => candidate.socketId === playerSocketId);
+    if (!player || (phase !== gamePhase.revealTwoCards && !player.playersTurn)) return;
+    return player;
+  }
 
+  private validPosition(player: Player, position: unknown): position is CardPosition {
+    if (!Array.isArray(position) || position.length !== 2) return false;
+    const [column, row] = position;
+    return Number.isInteger(column) && Number.isInteger(row) &&
+      column >= 0 && column < player.deck.length && row >= 0 && row < 3 &&
+      player.deck[column]?.[row] !== undefined;
+  }
+
+  private actionRate(playerSocketId: string): number {
+    const now = Date.now();
+    let window = this.actionWindows.get(playerSocketId);
+    if (!window || now - window.since >= 10_000) {
+      window = { since: now, count: 0 };
+      this.actionWindows.set(playerSocketId, window);
+    }
+    return ++window.count;
+  }
+
+  revealCardAction(playerSocketId: string, cardPosition: unknown): boolean {
+    const player = this.actionPlayer(playerSocketId, this.phase);
+    if (!player || ![gamePhase.revealTwoCards, gamePhase.revealCard].includes(this.phase)) return false;
+    if (!this.validPosition(player, cardPosition)) return false;
     const [columnIndex, cardIndex] = cardPosition;
-    const revealedCard = player.deck[columnIndex][cardIndex];
-    console.log(
-      `Revealed card ${revealedCard} at column ${columnIndex} card ${cardIndex}`
-    );
-    const playerIndex = this.players.indexOf(player!);
-    this.players[playerIndex].knownCardPositions[columnIndex][cardIndex] = true;
+    if (player.knownCardPositions[columnIndex][cardIndex]) return false;
+    if (this.phase === gamePhase.revealTwoCards && player.hasInitialCardsRevealed()) return false;
+    player.knownCardPositions[columnIndex][cardIndex] = true;
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  drawCardAction(playerSocketId: string, data: any) {
-    const player = this.getPlayerBySocketId(playerSocketId);
-    console.log(`Player ${player.name} drawed a card.`);
-    const drawnCard = this.cardStack.cards.pop()!;
-    player.cardCache = drawnCard;
+  drawCardAction(playerSocketId: string, _data: unknown): boolean {
+    const player = this.actionPlayer(playerSocketId, gamePhase.pickUpCard);
+    if (!player || player.cardCache !== null) return false;
+    if (this.cardStack.cards.length === 0) {
+      if (this.discardPile.length <= 1) return false;
+      const topDiscard = this.discardPile.pop()!;
+      this.cardStack.cards = this.discardPile;
+      this.discardPile = [topDiscard];
+      this.cardStack.shuffleCards();
+    }
+    player.cardCache = this.cardStack.cards.pop()!;
+    player.tookDispiledCard = false;
+    this.phase = gamePhase.placeCard;
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  takeDiscardPileAction(playerSocketId: string, data: any) {
-    const player = this.getPlayerBySocketId(playerSocketId);
-    console.log(`Player ${player.name} took the card from discard pile.`);
-    const discardPileCard = this.discardPile.pop()!;
-    player.cardCache = discardPileCard;
+  takeDiscardPileAction(playerSocketId: string, _data: unknown): boolean {
+    const player = this.actionPlayer(playerSocketId, gamePhase.pickUpCard);
+    if (!player || player.cardCache !== null || this.discardPile.length === 0) return false;
+    player.cardCache = this.discardPile.pop()!;
     player.tookDispiledCard = true;
+    this.phase = gamePhase.placeCard;
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  discardCardToPileAction(playerSocketId: string, data: any) {
-    const player = this.getPlayerBySocketId(playerSocketId);
-    console.log(`Player ${player.name} discarded a card to the pile.`);
-    const discardedCard = player.cardCache!;
-    this.discardPile.push(discardedCard);
+  discardCardToPileAction(playerSocketId: string, _data: unknown): boolean {
+    const player = this.actionPlayer(playerSocketId, gamePhase.placeCard);
+    if (!player || player.cardCache === null || player.tookDispiledCard) return false;
+    this.discardPile.push(player.cardCache);
     player.cardCache = null;
     this.phase = gamePhase.revealCard;
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  placeCardAction(playerSocketId: string, cardPosition: CardPosition) {
-    const player = this.getPlayerBySocketId(playerSocketId);
-    console.log(`Player ${player.name} placed a card.`);
-    const placedCard = player.cardCache!;
-    player.cardCache = null;
+  placeCardAction(playerSocketId: string, cardPosition: unknown): boolean {
+    const player = this.actionPlayer(playerSocketId, gamePhase.placeCard);
+    if (!player || player.cardCache === null || !this.validPosition(player, cardPosition)) return false;
     const [columnIndex, cardIndex] = cardPosition;
     const replacedCard = player.deck[columnIndex][cardIndex];
+    player.deck[columnIndex][cardIndex] = player.cardCache;
+    player.cardCache = null;
+    player.tookDispiledCard = false;
     this.discardPile.push(replacedCard);
-    player.deck[columnIndex][cardIndex] = placedCard;
     player.knownCardPositions[columnIndex][cardIndex] = true;
-    // TODO: check for three of a kind
     this.nextPlayersTurn();
     this.phase = gamePhase.pickUpCard;
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  nextRoundAction(playerSocketId: string, data: any) {
+  nextRoundAction(playerSocketId: string, _data: unknown): boolean {
+    if (this.disposed || this.phase !== gamePhase.newRound ||
+        !this.players.some((player) => player.socketId === playerSocketId)) return false;
+    this.checkIfPointLimitReached();
+    if (this.disposed) return false;
     this.initializeNewRound();
     this.sendObfuscatedGameUpdate();
+    return true;
   }
 
-  /**
-   * This function waits for a player to perform one of the expected actions.
-   * When a player performs one of the expected actions, the corresponding callback is called and further processes the player data.
-   * All event listeners are removed after every player defined in expectedFrom performed the expected action.
-   * The function also returns a promise that resolves with the data sent by the player.
-   * @param expectedActions
-   * @param expectedFrom
-   * @returns playerSocketId and data sent by the player
-   */
+  /** Invalid actions keep the current wait active; disposal resolves it with null. */
   waitForPlayerActions<ActionDataType>(
     expectedActions: ExpectedPlayerActions,
     expectedFrom: Player["socketId"][]
-  ): Promise<PlayerAction<ActionDataType>> {
-    const eventListeners = new Map<string, (...args: any[]) => void>();
-
-    const addPlayerActionListeners = (
-      resolve: (
-        value:
-          | PlayerAction<ActionDataType>
-          | PromiseLike<PlayerAction<ActionDataType>>
-      ) => void
-    ) => {
-      expectedFrom.forEach((playerSocketId) => {
+  ): Promise<PlayerAction<ActionDataType> | null> {
+    if (this.disposed) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const listeners: Array<{ socket: Socket; name: string; listener: (...args: any[]) => void }> = [];
+      let settled = false;
+      const cleanup = () => {
+        for (const { socket, name, listener } of listeners) socket.off(name, listener);
+        this.pendingWaits.delete(cancel);
+      };
+      const cancel = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(null);
+      };
+      const ack = (callback: unknown, result: string) => {
+        if (typeof callback !== "function") return;
+        try { callback(result); } catch { /* An acknowledgement must never terminate the game. */ }
+      };
+      this.pendingWaits.add(cancel);
+      for (const playerSocketId of expectedFrom) {
         const playerSocket = io.sockets.sockets.get(playerSocketId);
-        if (playerSocket) {
-          expectedActions.forEach((expectedAction) => {
-            const [actionName, processAction] = expectedAction;
-            const eventListener = (data: ActionDataType, ackFunction: any) => {
-              console.log(`Received ${actionName} from ${playerSocketId}`);
-              processAction(playerSocketId, data);
-              // remove current and event listeners of alternative expected actions
-              removePlayerActionListeners();
-              const playerResponse = { playerSocketId, data };
-              // ackFunction("success");
-              resolve(playerResponse);
-            };
-            playerSocket.on(actionName, eventListener);
-            eventListeners.set(
-              `${playerSocketId}-${actionName}`,
-              eventListener
-            );
-          });
-        }
-      });
-    };
-
-    const removePlayerActionListeners = () => {
-      expectedFrom.forEach((playerSocketId) => {
-        const playerSocket = io.sockets.sockets.get(playerSocketId);
-        if (playerSocket) {
-          expectedActions.forEach((expectedAction) => {
-            const [actionName] = expectedAction;
-
-            const eventListener = eventListeners.get(
-              `${playerSocketId}-${actionName}`
-            );
-            if (eventListener) {
-              playerSocket.off(actionName, eventListener);
-              eventListeners.delete(`${playerSocketId}-${actionName}`);
+        if (!playerSocket) continue;
+        for (const [name, processAction] of expectedActions) {
+          const listener = (data: ActionDataType, callback: unknown) => {
+            if (settled || this.disposed) return;
+            const requests = this.actionRate(playerSocketId);
+            if (requests > 60) {
+              // Avoid amplifying floods into an unbounded stream of error ACKs.
+              if (requests === 61) ack(callback, "error:rate-limited");
+              return;
             }
-          });
+            let accepted = false;
+            try { accepted = processAction(playerSocketId, data); }
+            catch (error) { console.error("Game action failed", name, error); }
+            if (!accepted) {
+              ack(callback, "error:invalid-action");
+              return;
+            }
+            settled = true;
+            cleanup();
+            ack(callback, "success");
+            resolve({ playerSocketId, data });
+          };
+          playerSocket.on(name, listener);
+          listeners.push({ socket: playerSocket, name, listener });
         }
-      });
-    };
-
-    return new Promise<PlayerAction<ActionDataType>>((resolve) => {
-      addPlayerActionListeners(resolve);
+      }
     });
+  }
+
+  /** Ends this game and releases waits/listeners, including disconnected sockets. */
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.phase = gamePhase.gameEnded;
+    for (const cancel of Array.from(this.pendingWaits)) cancel();
+    this.actionWindows.clear();
+    const index = allGames.indexOf(this);
+    if (index !== -1) allGames.splice(index, 1);
   }
 
   sendObfuscatedGameUpdate() {
@@ -407,11 +467,11 @@ export class Game {
       },
     };
     console.log("Sending game update");
-    io.to(this.sessionId).emit("game-update", obfuscatedGame);
+    io.to(sessionRoom(this.sessionId)).emit("game-update", obfuscatedGame);
   }
 
   sendNullGameUpdate() {
-    io.to(this.sessionId).emit("game-update", null);
+    io.to(sessionRoom(this.sessionId)).emit("game-update", null);
   }
 
   updatePlayerRoundPoints() {
@@ -486,7 +546,7 @@ export class Game {
     this.players.forEach((player) => {
       const threeOfAKinds = player.getThreeOfAKinds();
       if (threeOfAKinds.length == 0) return;
-      threeOfAKinds.forEach((threeOfAKind) => {
+      threeOfAKinds.sort((a, b) => b.columnIndex - a.columnIndex).forEach((threeOfAKind) => {
         const { columnIndex, value } = threeOfAKind;
         this.discardPile.push(value as Card);
         this.discardPile.push(value as Card);
@@ -499,6 +559,7 @@ export class Game {
   }
 
   checkIfPointLimitReached() {
+    if (this.disposed) return;
     const highestPoints = Math.max(
       ...this.players.map((player) => player.totalPoints)
     );
@@ -531,13 +592,14 @@ export class Game {
 
       this.phase = gamePhase.gameEnded;
       this.sendObfuscatedGameUpdate();
-      allGames.splice(allGames.indexOf(this), 1);
+      this.dispose();
     }
   }
 
   checkForPlayerLeave() {
-    const playersInSession = io.sockets.adapter.rooms.get(this.sessionId);
-    if (playersInSession?.size ?? 0 < this.playerCount) {
+    const playersInSession = io.sockets.adapter.rooms.get(sessionRoom(this.sessionId));
+    if (this.disposed) return;
+    if ((playersInSession?.size ?? 0) < this.playerCount) {
       const playerThatLeftSession = this.players.filter(
         (player) => !playersInSession?.has(player.socketId)
       );
@@ -550,11 +612,11 @@ export class Game {
         );
         this.phase = gamePhase.gameEnded;
         this.sendNullGameUpdate();
-        io.to(this.sessionId).emit(
+        io.to(sessionRoom(this.sessionId)).emit(
           "clients-in-session",
           playersInSession?.size ?? 0
         );
-        allGames.splice(allGames.indexOf(this), 1);
+        this.dispose();
       }
     }
   }
@@ -661,7 +723,7 @@ export class Game {
   }
 
   sendMessageToAllPlayers(message: string) {
-    io.to(this.sessionId).emit("message", message);
+    io.to(sessionRoom(this.sessionId)).emit("message", message);
     console.log(`Sent Message (Session): ${message}`);
   }
 }

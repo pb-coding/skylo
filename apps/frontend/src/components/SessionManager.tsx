@@ -14,7 +14,14 @@ type SessionManagerProps = {
   showStartGameButton: boolean;
 };
 
-type SessionResponse = "success" | "error:full" | "error:running";
+type SessionResponse = "success" | "error:full" | "error:running" | "error:invalid" | "error:joined";
+
+const joinErrors: Record<Exclude<SessionResponse, "success">, string> = {
+  "error:full": "Diese Session ist bereits voll.",
+  "error:running": "In dieser Session läuft bereits eine Partie.",
+  "error:invalid": "Bitte gib einen gültigen Sessionnamen ein (maximal 40 Zeichen).",
+  "error:joined": "Verlasse zunächst deine aktuelle Session.",
+};
 
 export const SessionManager: FC<SessionManagerProps> = ({
   isConnected,
@@ -25,24 +32,51 @@ export const SessionManager: FC<SessionManagerProps> = ({
   showStartGameButton,
 }) => {
   const [sessionField, setSessionField] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
 
   function joinSession(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    socket.emit("join-session", sessionField, (response: SessionResponse) => {
-      if (response !== "success") return;
-      setSession(sessionField);
+    if (!isConnected || pending) return;
+    setPending(true);
+    setError("");
+    const requestedSession = sessionField.trim();
+    socket.timeout(8000).emit("join-session", requestedSession, (timeout: Error | null, response: SessionResponse) => {
+      setPending(false);
+      if (timeout) return setError("Keine Antwort vom Server. Bitte versuche es erneut.");
+      if (response !== "success") return setError(joinErrors[response] || "Beitritt fehlgeschlagen.");
+      setSession(requestedSession);
       setSessionField("");
     });
   }
 
   function leaveSession(sessionName: string) {
-    socket.emit("leave-session", sessionName);
-    setClientsInRoom(0);
-    setSession("");
+    if (!isConnected) {
+      setClientsInRoom(0);
+      setSession("");
+      return;
+    }
+    if (pending) return;
+    setPending(true);
+    setError("");
+    socket.timeout(8000).emit("leave-session", sessionName, (timeout: Error | null, response: string) => {
+      setPending(false);
+      if (timeout) return setError("Keine Antwort vom Server. Bitte versuche es erneut.");
+      if (response !== "success") return setError("Die Session konnte nicht verlassen werden. Bitte versuche es erneut.");
+      setClientsInRoom(0);
+      setSession("");
+    });
   }
 
   function startGame() {
-    socket.emit("new-game", { sessionId: session });
+    if (!isConnected || pending) return;
+    setPending(true);
+    setError("");
+    socket.timeout(8000).emit("new-game", { sessionId: session }, (timeout: Error | null, response: string) => {
+      setPending(false);
+      if (timeout) return setError("Keine Antwort vom Server. Bitte versuche es erneut.");
+      if (response !== "success") setError("Die Partie konnte nicht gestartet werden. Nur der Gastgeber kann eine neue Partie mit mindestens zwei Spielern starten.");
+    });
   }
 
   const isActiveSession = session !== "";
@@ -61,24 +95,29 @@ export const SessionManager: FC<SessionManagerProps> = ({
             {!isActiveSession && (
               <form onSubmit={joinSession}>
                 <label
-                  htmlFor="first_name"
+                  htmlFor="session-name"
                   className="block mb-2 text-md font-medium text-theme-font drop-shadow-white"
                 >
                   Join Skylo Session
                 </label>
                 <div className="flex space-x-1 items-center">
                   <input
+                    id="session-name"
+                    maxLength={40}
+                    value={sessionField}
+                    disabled={!isConnected || pending}
                     className="border text-sm rounded-lg block w-full p-2.5 bg-theme-tertiary border-black placeholder-gray-400 text-theme-font focus:ring-theme-primary focus:border-theme-primary"
                     placeholder="Session name"
                     required
                     onChange={(e) => setSessionField(e.target.value)}
                   />
-                  <Button>Join</Button>
+                  <Button disabled={!isConnected || pending}>{pending ? "Bitte warten …" : "Join"}</Button>
                 </div>
               </form>
             )}
           </div>
 
+          {error && <p role="alert" className="mb-4 p-3 text-white bg-teal-900 rounded-lg">{error}</p>}
           <div className="mx-4 py-4 bg-teal-200 border border-black rounded-lg">
             {isActiveSession && (
               <p className="text-theme-font text-3xl drop-shadow-white my-2">
@@ -90,10 +129,10 @@ export const SessionManager: FC<SessionManagerProps> = ({
             </p>
             <br />
             {showStartGameButton && (
-              <Button onClick={startGame}>Start Game</Button>
+              <Button disabled={!isConnected || pending} onClick={startGame}>Start Game</Button>
             )}
             {isActiveSession && (
-              <Button variant="secondary" onClick={() => leaveSession(session)}>
+              <Button disabled={pending} variant="secondary" onClick={() => leaveSession(session)}>
                 Leave Session
               </Button>
             )}

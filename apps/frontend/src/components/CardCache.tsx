@@ -12,7 +12,7 @@ type CardCacheProps = {
 const CardCache: FC<CardCacheProps> = ({ playerData, position }) => {
   const [cardCacheCard, setCardCacheCard] = useState<Object3D | null>(null);
 
-  const updateCardCache = (playerData: Player) => {
+  useEffect(() => {
     if (playerData.cardCache == null) {
       setCardCacheCard(null);
       return;
@@ -20,12 +20,7 @@ const CardCache: FC<CardCacheProps> = ({ playerData, position }) => {
     const showFaceUp = true;
     const card = createCard(playerData.cardCache, position, showFaceUp);
     setCardCacheCard(card);
-  };
-
-  useEffect(() => {
-    if (!playerData) return;
-    updateCardCache(playerData);
-  }, [playerData]);
+  }, [playerData, position]);
 
   if (!cardCacheCard) return null;
 

@@ -145,7 +145,11 @@ const VoiceChat: FC<VoiceChatProps> = ({ session }) => {
   };
 
   const toggleAudio = async () => {
-    isAudioEnabled ? disableAudio() : enableAudio();
+    if (isAudioEnabled) {
+      disableAudio();
+    } else {
+      enableAudio();
+    }
     setIsAudioEnabled((previous) => !previous);
   };
 

@@ -104,8 +104,7 @@ export class Player {
 
       const columnHasSameCards = column.every((card) => card === firstCard);
       const columnIsRevealed = this.knownCardPositions[columnIndex].every(
-        (isCardRevealed) =>
-          isCardRevealed === this.knownCardPositions[columnIndex][0]
+        (isCardRevealed) => isCardRevealed === true
       );
 
       if (columnHasSameCards && columnIsRevealed) {

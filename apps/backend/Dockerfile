@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM node:18.20.8-slim AS build
+FROM node:24.21.0-slim AS build
 WORKDIR /app
 COPY package*.json ./
 RUN --mount=type=secret,id=proxy_ca \
@@ -8,7 +8,7 @@ RUN --mount=type=secret,id=proxy_ca \
 COPY . .
 RUN npm run build
 
-FROM node:18.20.8-slim
+FROM node:24.21.0-slim
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package*.json ./
