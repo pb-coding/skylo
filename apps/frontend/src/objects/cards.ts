@@ -7,11 +7,13 @@ import {
   Mesh,
   Object3DEventMap,
   Object3D,
+  Texture,
 } from "three";
 
 import { Card, Deck, VisualColumn, VisualDeck } from "../types/gameTypes";
 
 const textureLoader = new TextureLoader();
+const cardTextures = new Map<number | null, Texture>();
 const cardSize = 5;
 const cardGeometry = new BoxGeometry(
   cardSize * 0.4,
@@ -20,6 +22,8 @@ const cardGeometry = new BoxGeometry(
 );
 
 const getCardTexture = (value: number | null) => {
+  const cached = cardTextures.get(value);
+  if (cached) return cached;
   let cardTexture;
   switch (value) {
     case -2:
@@ -75,6 +79,7 @@ const getCardTexture = (value: number | null) => {
       break;
   }
   cardTexture.colorSpace = SRGBColorSpace;
+  cardTextures.set(value, cardTexture);
   return cardTexture;
 };
 

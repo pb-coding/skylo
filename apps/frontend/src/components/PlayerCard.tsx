@@ -1,71 +1,20 @@
-import { FC, useState, useEffect } from "react";
-import { Object3D, Object3DEventMap } from "three";
-// import { useFrame } from "@react-three/fiber";
-import { socket } from "../socket";
-import { PlayerVisualDeck } from "../types/gameTypes";
+import { useMemo, useEffect } from "react";
+import { Vector3 } from "three";
+import { createCard } from "../objects/cards";
+import { useGameInteraction } from "../gameInteraction";
+import type { Card, GameAction } from "../types/gameProtocol";
 
-type PlayerCardProps = {
-  card: Object3D<Object3DEventMap>;
-  columnIndex: number;
-  cardIndex: number;
-  isCurrentPlayer: boolean;
-  visualPlayerDeck: PlayerVisualDeck;
-};
+type Props = { value: Card | null; slotId: string; faceUp: boolean; position: [number, number, number]; owned: boolean };
 
-const PlayerCard: FC<PlayerCardProps> = ({
-  card,
-  columnIndex,
-  cardIndex,
-  isCurrentPlayer,
-  visualPlayerDeck,
-}) => {
-  const isCardRevealed =
-    visualPlayerDeck.player.knownCardPositions[columnIndex][cardIndex];
-  const [cardObject, setCardObject] =
-    useState<Object3D<Object3DEventMap>>(card);
-
-  useEffect(() => {
-    if (cardObject.name === card.name) return;
-    setCardObject(card);
-  }, [card, cardObject]);
-
-  // TODO: Fix stuttering card rotation
-  /*const [rotationGoal, setRotationGoal] = useState(0);
-  const rotationSpeed = 0.05; // Adjust for faster/slower flip
-  const currentRotation = useRef<number>(0);
-
-  useFrame(() => {
-    if (currentRotation.current < rotationGoal) {
-      card.rotation.x += rotationSpeed;
-      currentRotation.current += rotationSpeed;
-      if (currentRotation.current >= rotationGoal) {
-        card.rotation.x = rotationGoal;
-      }
-    } else if (currentRotation.current > rotationGoal) {
-      card.rotation.x -= rotationSpeed;
-      currentRotation.current -= rotationSpeed;
-      if (currentRotation.current <= rotationGoal) {
-        card.rotation.x = rotationGoal;
-      }
-    }
-  });*/
-
-  if (isCardRevealed) {
-    card.rotation.x = Math.PI;
-  }
-
-  const clickCard = () => {
-    if (!isCurrentPlayer) return;
-    console.log("Clicked on one of my cards");
-    socket.emit("click-card", [columnIndex, cardIndex]);
-  };
-  return (
-    <primitive
-      key={columnIndex + cardIndex * 4}
-      object={cardObject}
-      onClick={() => clickCard()}
-    />
-  );
-};
-
-export default PlayerCard;
+export default function PlayerCard({ value, slotId, faceUp, position, owned }: Props) {
+  const [x, y, z] = position;
+  const card = useMemo(() => createCard(value, new Vector3(x, y, z), faceUp), [value, x, y, z, faceUp]);
+  useEffect(() => () => card.material.forEach((material) => material.dispose()), [card]);
+  const interaction = useGameInteraction();
+  const action = interaction.legalActions.find((action): action is GameAction & { slotId: string } =>
+    "slotId" in action && action.slotId === slotId);
+  return <primitive object={card} dispose={null} onClick={(event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+    if (owned && action && interaction.allows(action)) interaction.sendAction(action);
+  }} />;
+}

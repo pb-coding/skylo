@@ -21,12 +21,13 @@ const CardFanAnimation: FC = () => {
     });
   }, []);
 
-  const imageClasses = "w-40 transition-transform duration-1000";
+  const imageClasses = "w-20 sm:w-28 transition-transform duration-1000";
 
   return (
     <div
       ref={cardContainerRef}
-      className="fixed bottom-0 w-full flex justify-center space-x-1"
+      className="relative mt-8 h-52 w-full flex justify-center space-x-1 overflow-hidden pointer-events-none"
+      aria-hidden="true"
     >
       <img src="/textures/card-7.png" className={imageClasses} alt="Card 7" />
       <img src="/textures/card-3.png" className={imageClasses} alt="Card 3" />

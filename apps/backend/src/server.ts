@@ -18,6 +18,12 @@ import {
   handleNewGame,
   handleDisconnect,
   isSessionMember,
+  handleSetRole,
+  handleBotChange,
+  handleGameAction,
+  handlePlayback,
+  handleStopMatch,
+  handleExportMatch,
 } from "./game/events";
 import dotenv from "dotenv";
 import { acknowledge, isRecord, validDescription, validIceCandidate } from "./game/sessionValidation";
@@ -41,6 +47,8 @@ io.on("connection", (socket: Socket) => {
   let windowStart = Date.now();
   let controls = 0;
   let signals = 0;
+  let actionWindow = Date.now();
+  let actions = 0;
   const allow = (signaling: boolean) => {
     if (Date.now() - windowStart >= 10_000) {
       windowStart = Date.now();
@@ -62,6 +70,21 @@ io.on("connection", (socket: Socket) => {
   socket.on("join-session", control((sessionId, callback) => handleJoinSession(socket, sessionId, callback)));
   socket.on("leave-session", control((sessionId, callback) => handleLeaveSession(socket, sessionId, callback)));
   socket.on("new-game", control((gameDetails, callback) => handleNewGame(socket, gameDetails, callback)));
+  socket.on("set-role", control((payload, callback) => handleSetRole(socket, payload, callback)));
+  socket.on("add-bot", control((payload, callback) => handleBotChange(socket, payload, callback, "add")));
+  socket.on("remove-bot", control((payload, callback) => handleBotChange(socket, payload, callback, "remove")));
+  socket.on("update-bot", control((payload, callback) => handleBotChange(socket, payload, callback, "update")));
+  socket.on("game-action", (payload, callback) => {
+    if (Date.now() - actionWindow >= 10_000) { actionWindow = Date.now(); actions = 0; }
+    if (++actions > 60) {
+      if (actions === 61) acknowledge(callback, "error:rate-limited");
+      return;
+    }
+    handleGameAction(socket, payload, callback);
+  });
+  socket.on("playback-control", control((payload, callback) => handlePlayback(socket, payload, callback)));
+  socket.on("stop-match", control((payload, callback) => handleStopMatch(socket, payload, callback)));
+  socket.on("export-match", control((payload, callback) => handleExportMatch(socket, payload, callback)));
 
   const signal = (outEvent: string, field: string, valid: (value: unknown) => boolean) =>
     (payload: unknown) => {

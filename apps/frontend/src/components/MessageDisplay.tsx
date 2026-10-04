@@ -8,7 +8,7 @@ const MessageDisplay: FC<MessageDisplayProps> = ({ message }) => {
   if (!message || message == "") return null;
 
   return (
-    <div className="absolute top-0 left-0 w-full h-full flex justify-center items-center">
+    <div role="status" className="fixed bottom-4 inset-x-4 z-40 flex justify-center pointer-events-none">
       <div className="bg-gray-800 p-4 rounded-lg">
         <p className="text-white text-xl opacity-100">{message}</p>
       </div>

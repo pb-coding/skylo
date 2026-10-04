@@ -1,30 +1,11 @@
-import { FC, useEffect, useState } from "react";
-import { Vector3, Object3D } from "three";
-
+import { useEffect, useMemo } from "react";
+import { Vector3 } from "three";
 import { createCard } from "../objects/cards";
-import { Player } from "../types/gameTypes";
+import type { Card } from "../types/gameProtocol";
 
-type CardCacheProps = {
-  playerData: Player;
-  position: Vector3;
-};
-
-const CardCache: FC<CardCacheProps> = ({ playerData, position }) => {
-  const [cardCacheCard, setCardCacheCard] = useState<Object3D | null>(null);
-
-  useEffect(() => {
-    if (playerData.cardCache == null) {
-      setCardCacheCard(null);
-      return;
-    }
-    const showFaceUp = true;
-    const card = createCard(playerData.cardCache, position, showFaceUp);
-    setCardCacheCard(card);
-  }, [playerData, position]);
-
-  if (!cardCacheCard) return null;
-
-  return <primitive object={cardCacheCard} />;
-};
-
-export default CardCache;
+export default function CardCache({ value, position }: { value: Card | null; position: [number, number, number] }) {
+  const [x, y, z] = position;
+  const card = useMemo(() => value === null ? null : createCard(value, new Vector3(x, y, z), true), [value, x, y, z]);
+  useEffect(() => () => card?.material.forEach((material) => material.dispose()), [card]);
+  return card ? <primitive object={card} dispose={null} /> : null;
+}

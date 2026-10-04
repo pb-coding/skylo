@@ -1,30 +1,17 @@
-import { FC, useState, useEffect } from "react";
-import { Object3D, Object3DEventMap } from "three";
-import { socket } from "../socket";
+import { useEffect, useMemo } from "react";
+import { Vector3 } from "three";
+import { createCard } from "../objects/cards";
+import { useGameInteraction } from "../gameInteraction";
+import type { Card } from "../types/gameProtocol";
 
-type DiscardPileCardProps = {
-  card: Object3D<Object3DEventMap>;
-  isUppermostCard: boolean;
-};
-
-const DiscardPileCard: FC<DiscardPileCardProps> = ({
-  card,
-  isUppermostCard,
-}) => {
-  const [cardObject, setCardObject] =
-    useState<Object3D<Object3DEventMap>>(card);
-
-  useEffect(() => {
-    if (cardObject.name === card.name) return;
-    setCardObject(card);
-  }, [card, cardObject]);
-
-  const clickCard = () => {
-    if (!isUppermostCard) return;
-    console.log("Draw card");
-    socket.emit("click-discard-pile", "take discard pile card");
-  };
-  return <primitive object={cardObject} onClick={() => clickCard()} />;
-};
-
-export default DiscardPileCard;
+export default function DiscardPileCard({ value, index, top }: { value: Card; index: number; top: boolean }) {
+  const card = useMemo(() => createCard(value, new Vector3(1.3, 20.05 + index * 0.01, 0), true), [value, index]);
+  useEffect(() => () => card.material.forEach((material) => material.dispose()), [card]);
+  const interaction = useGameInteraction();
+  return <primitive object={card} dispose={null} onClick={(event: { stopPropagation: () => void }) => {
+    event.stopPropagation();
+    if (!top) return;
+    const action = interaction.legalActions.find((action) => action.type === "take-discard" || action.type === "discard");
+    if (action && interaction.allows(action)) interaction.sendAction(action);
+  }} />;
+}

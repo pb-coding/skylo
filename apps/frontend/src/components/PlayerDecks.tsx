@@ -1,86 +1,33 @@
-import { FC, useState, useEffect } from "react";
-import { socket } from "../socket";
-import { Vector3 } from "three";
-
-import { createPlayerCards as createPlayerDeck } from "../objects/cards";
+import { Html } from "@react-three/drei";
 import PlayerCard from "./PlayerCard";
-import { PlayerVisualDeck, Player } from "../types/gameTypes";
 import CardCache from "./CardCache";
+import type { GameView } from "../types/gameProtocol";
 
-type PlayerDecksProps = {
-  playersData: Player[];
-};
-
-const PlayerDecks: FC<PlayerDecksProps> = ({ playersData }) => {
-  const [visualPlayerDecks, setVisualPlayerDecks] = useState<
-    PlayerVisualDeck[]
-  >([]);
-
-  const updatePlayerCards = (playersData: Player[]) => {
-    const visualPlayerDecks: PlayerVisualDeck[] = [];
-    const currentVisualPlayerDeck: PlayerVisualDeck[] = [];
-    let nonCurrentPlayerIndex = 1;
-    playersData.forEach((player) => {
-      const positionOffset = 14;
-      const playerVisualDeck: PlayerVisualDeck = {
-        player,
-        visualDeck: [],
-      };
-      if (player.socketId === socket.id) {
-        playerVisualDeck.visualDeck = createPlayerDeck(
-          player.deck,
-          new Vector3(0, 20, positionOffset)
-        );
-        currentVisualPlayerDeck.push(playerVisualDeck);
-      } else {
-        const playerOffset = positionOffset + nonCurrentPlayerIndex * -20;
-        playerVisualDeck.visualDeck = createPlayerDeck(
-          player.deck,
-          new Vector3(0, 20, playerOffset)
-        );
-        visualPlayerDecks.push(playerVisualDeck);
-        nonCurrentPlayerIndex++;
-      }
-    });
-    setVisualPlayerDecks([...currentVisualPlayerDeck, ...visualPlayerDecks]);
-  };
-
-  useEffect(() => {
-    if (!playersData) return;
-    updatePlayerCards(playersData);
-  }, [playersData]);
-
-  if (!visualPlayerDecks) return null;
-
-  return (
-    <>
-      {visualPlayerDecks.map((visualPlayerDeck, playerIndex) => (
-        <>
-          {visualPlayerDeck.visualDeck.map((column, columnIndex) => (
-            <>
-              {column.map((card, cardIndex) => (
-                <PlayerCard
-                  key={columnIndex + cardIndex * 4}
-                  card={card}
-                  visualPlayerDeck={visualPlayerDeck}
-                  columnIndex={columnIndex}
-                  cardIndex={cardIndex}
-                  isCurrentPlayer={playerIndex === 0}
-                />
-              ))}
-            </>
-          ))}
-          <CardCache
-            playerData={visualPlayerDeck.player}
-            // current player is always at index 0
-            position={new Vector3(9, 20, 6 - playerIndex * 12)}
-          />
-        </>
-      ))}
-    </>
-  );
-};
-
-export default PlayerDecks;
-// ich (0) --> 4
-// andere (1) --> -8
+export default function PlayerDecks({ gameData, focusPlayerId }: { gameData: GameView; focusPlayerId: string }) {
+  const focused = gameData.players.find((player) => player.id === focusPlayerId);
+  const ordered = focused ? [focused, ...gameData.players.filter((player) => player.id !== focused.id)] : gameData.players;
+  const columns = ordered.length > 2 ? 2 : 1;
+  const rows = Math.ceil(ordered.length / columns);
+  return <>{ordered.map((player, index) => {
+    const x = columns === 1 ? 0 : index % 2 === 0 ? -12 : 12;
+    const z = (rows - 1) * 8 - Math.floor(index / columns) * 16;
+    return <group key={player.id}>
+      <Html position={[x, 20.4, z + 6.2]} center zIndexRange={[10, 0]} style={{ pointerEvents: "none", whiteSpace: "nowrap" }}>
+        <span className={`px-2 py-1 rounded text-xs text-white ${player.playersTurn ? "bg-green-800" : "bg-teal-950"}`}>
+          {player.playersTurn ? "▶ " : ""}{player.name}{player.id === gameData.ownPlayerId ? " (du)" : ""}{player.kind === "bot" ? " · Bot" : ""}
+        </span>
+      </Html>
+      {player.id === focusPlayerId && <mesh position={[x, 20.001, z]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[17.5, 13]} /><meshBasicMaterial color="#facc15" transparent opacity={0.2} />
+      </mesh>}
+      {player.deck.map((column, columnIndex) => column.map((value, cardIndex) => {
+        const slotId = player.slotIds[columnIndex][cardIndex];
+        return <PlayerCard key={slotId} value={value} slotId={slotId}
+          faceUp={player.knownCardPositions[columnIndex][cardIndex]}
+          position={[x + columnIndex * 4 - 6, 20, z + cardIndex * 4 - 4]}
+          owned={player.id === gameData.ownPlayerId} />;
+      }))}
+      <CardCache value={player.cardCache} position={[x + 9, 20, z]} />
+    </group>;
+  })}</>;
+}

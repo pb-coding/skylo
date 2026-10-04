@@ -5,3 +5,20 @@
 body {
   margin: 0;
 }
+
+.field {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #134e4a;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #134e4a;
+}
+.field:focus-visible {
+  outline: 3px solid #facc15;
+  outline-offset: 2px;
+}
+.compact-field { width: auto; max-width: 100%; }
+button:disabled, input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
+button:focus-visible, input[type="range"]:focus-visible { outline: 3px solid #facc15; outline-offset: 3px; }
