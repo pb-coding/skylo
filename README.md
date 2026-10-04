@@ -29,6 +29,8 @@ Both apps have their own lockfiles and install dependencies independently. `npm 
 
 Games support 2–8 players. The first participant hosts the session and can start a new game. Refreshing or disconnecting still ends participation; session resume and durable game storage are planned separately. See [phase 1 verification](docs/phase-1.md) and the [improvement plan](docs/improvement-plan.md).
 
+The selected variant 3 keeps the interactive 3D table and adds a German lobby, invitation links, responsive score rail, turn cues and keyboard/touch card controls. See the [design comparison](design-qa.md) and [desktop/mobile screenshots](docs/design). Two-player voice is supported; group voice and real-network audio verification remain planned.
+
 ## Environment and deployment
 
 `npm run setup` creates ignored local `.env` files from `.env.example` without overwriting existing settings. Never commit actual secrets. Previously tracked `.env` files are removed from the new tree but remain in imported history; inspect and rotate any historical credentials before publication if applicable.

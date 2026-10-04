@@ -1,30 +1,6 @@
-import { FC, useState, useEffect } from "react";
-import { Object3D, Object3DEventMap } from "three";
-import { socket } from "../socket";
-
-type DiscardPileCardProps = {
-  card: Object3D<Object3DEventMap>;
-  isUppermostCard: boolean;
-};
-
-const DiscardPileCard: FC<DiscardPileCardProps> = ({
-  card,
-  isUppermostCard,
-}) => {
-  const [cardObject, setCardObject] =
-    useState<Object3D<Object3DEventMap>>(card);
-
-  useEffect(() => {
-    if (cardObject.name === card.name) return;
-    setCardObject(card);
-  }, [card, cardObject]);
-
-  const clickCard = () => {
-    if (!isUppermostCard) return;
-    console.log("Draw card");
-    socket.emit("click-discard-pile", "take discard pile card");
-  };
-  return <primitive object={cardObject} onClick={() => clickCard()} />;
-};
-
-export default DiscardPileCard;
+import { Card } from "../types/gameTypes";
+import CardMesh from "../scene/CardMesh";
+import { emitCardAction } from "../scene/gameActions";
+export default function DiscardPileCard({ value, enabled, position }: { value: Card; enabled: boolean; position: [number, number, number] }) {
+  return <CardMesh value={value} revealed position={position} enabled={enabled} animate={false} onActivate={() => emitCardAction("click-discard-pile", "discard pile")} />;
+}

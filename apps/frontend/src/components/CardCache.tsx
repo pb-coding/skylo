@@ -1,30 +1,6 @@
-import { FC, useEffect, useState } from "react";
-import { Vector3, Object3D } from "three";
-
-import { createCard } from "../objects/cards";
 import { Player } from "../types/gameTypes";
-
-type CardCacheProps = {
-  playerData: Player;
-  position: Vector3;
-};
-
-const CardCache: FC<CardCacheProps> = ({ playerData, position }) => {
-  const [cardCacheCard, setCardCacheCard] = useState<Object3D | null>(null);
-
-  useEffect(() => {
-    if (playerData.cardCache == null) {
-      setCardCacheCard(null);
-      return;
-    }
-    const showFaceUp = true;
-    const card = createCard(playerData.cardCache, position, showFaceUp);
-    setCardCacheCard(card);
-  }, [playerData, position]);
-
-  if (!cardCacheCard) return null;
-
-  return <primitive object={cardCacheCard} />;
-};
-
-export default CardCache;
+import CardMesh from "../scene/CardMesh";
+export default function CardCache({ playerData }: { playerData: Player }) {
+  if (playerData.cardCache === null) return null;
+  return <CardMesh value={playerData.cardCache} revealed position={[6.3, 6.22, 0.5]} />;
+}
