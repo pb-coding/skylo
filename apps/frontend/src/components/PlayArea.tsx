@@ -1,24 +1,13 @@
-import { FC } from "react";
-
 import PlayerDecks from "./PlayerDecks";
 import { Game } from "../types/gameTypes";
+import { getGameActions } from "../scene/gameActions";
 import CardStackStaple from "./CardStackStaple";
 import DiscardPile from "./DiscardPile";
-
-type PlayAreaProps = {
-  gameData: Game | null;
-};
-
-const PlayArea: FC<PlayAreaProps> = ({ gameData }) => {
-  if (!gameData) return null;
-
-  return (
-    <>
-      <PlayerDecks playersData={gameData.players} />
-      <CardStackStaple cardStackData={gameData.cardStack} />
-      <DiscardPile discardPileData={gameData.discardPile} />
-    </>
-  );
-};
-
-export default PlayArea;
+export default function PlayArea({ gameData, isConnected, focusedCard }: { gameData: Game; isConnected: boolean; focusedCard?: [number, number] | null }) {
+  const actions = getGameActions(gameData, isConnected);
+  return <>
+    <PlayerDecks gameData={gameData} isConnected={isConnected} focusedCard={focusedCard} />
+    <CardStackStaple cardStackData={gameData.cardStack} enabled={actions.canDraw} />
+    <DiscardPile discardPileData={gameData.discardPile} enabled={actions.canDiscard} />
+  </>;
+}

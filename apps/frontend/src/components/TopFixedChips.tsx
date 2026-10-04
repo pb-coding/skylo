@@ -1,24 +1,29 @@
-import { FC } from "react";
-
+import { FC, useState } from "react";
+import { Copy, Check, UserPlus } from "@phosphor-icons/react";
 import VoiceChat from "./VoiceChat";
-import RoundChip from "../global/RoundChip";
-
-type TopFixedChipsProps = {
-  session: string;
-};
-
-const TopFixedChips: FC<TopFixedChipsProps> = ({ session }) => {
-  const isActiveSession = session !== "";
-
-  if (!isActiveSession) return null;
-
-  return (
-    <div className="fixed top-0 left-0 flex">
-      <RoundChip description="toggle voice chat">
-        <VoiceChat session={session} />
-      </RoundChip>
+const TopFixedChips: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string }> = ({ session, isConnected, playerCount, hostId }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  if (!session) return null;
+  const invitation = new URL(window.location.href);
+  invitation.search = "";
+  invitation.searchParams.set("room", session);
+  async function copy() {
+    try { await navigator.clipboard.writeText(invitation.toString()); setCopied(true); setCopyError(false); }
+    catch { setCopyError(true); }
+  }
+  return <header className="game-toolbar">
+    <div className="invite-control">
+      <button className="invite-button" aria-expanded={isOpen} onClick={() => setIsOpen(!isOpen)}><UserPlus size={22} weight="fill" /><span>Einladen</span></button>
+      {isOpen && <section className="invite-popover" aria-label="Freunde einladen">
+        <h2>Gemeinsam am Tisch</h2><p>Raumcode: <strong>{session}</strong></p>
+        <label htmlFor="invitation-link">Einladungslink</label><input id="invitation-link" value={invitation.toString()} readOnly onFocus={(event) => event.target.select()} />
+        <button className="button button-primary" onClick={copy}>{copied ? <Check size={18} /> : <Copy size={18} />}{copied ? "Link kopiert" : "Link kopieren"}</button>
+        {copyError && <p role="status">Bitte markiere den Link und kopiere ihn manuell.</p>}
+      </section>}
     </div>
-  );
+    <VoiceChat key={session} session={session} isConnected={isConnected} playerCount={playerCount} hostId={hostId} />
+  </header>;
 };
-
 export default TopFixedChips;
