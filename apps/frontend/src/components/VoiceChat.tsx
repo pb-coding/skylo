@@ -1,167 +1,146 @@
-import { FC, useEffect, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { Microphone, MicrophoneSlash } from "@phosphor-icons/react";
 import { socket } from "../socket";
 
-import HeadsetIcon from "../global/icons/HeadsetIcon";
+const VoiceChat: FC<{ session: string; isConnected: boolean; playerCount: number; hostId: string }> = ({ session, isConnected, playerCount, hostId }) => {
+  const [enabled, setEnabled] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
+  const peer = useRef<RTCPeerConnection | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const audio = useRef<HTMLAudioElement>(null);
+  const generation = useRef(0);
+  const candidates = useRef<RTCIceCandidateInit[]>([]);
+  const makingOffer = useRef(false);
+  const ignoreOffer = useRef(false);
+  const lastAcceptedOffer = useRef("");
 
-type VoiceChatProps = {
-  session: string;
-};
-
-const VoiceChat: FC<VoiceChatProps> = ({ session }) => {
-  const servers = {
-    iceServers: [
-      {
-        urls: [
-          "stun:stun1.l.google.com:19302",
-          "stun:stun2.l.google.com:19302",
-        ],
-      },
-    ],
-    iceCandidatePoolSize: 10,
-  };
-
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false);
-
-  // const localAudioRef = useRef<HTMLAudioElement>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement>(null);
-
-  const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream>(new MediaStream());
-
-  const pc = useRef(new RTCPeerConnection(servers));
-  const sessionRef = useRef<string>(session);
-
-  useEffect(() => {
-    sessionRef.current = session;
-  }, [session]);
-
-  const setupAudio = async () => {
-    localStreamRef.current = await navigator.mediaDevices.getUserMedia({
-      video: false, // disabled video for now
-      audio: true,
-    });
-
-    // only when using video the own video stream is displayed
-    /*
-    if (localAudioRef.current) {
-      localAudioRef.current.srcObject = localStreamRef.current;
-    }
-    */
-
-    localStreamRef.current.getTracks().forEach((track) => {
-      if (!localStreamRef.current) return;
-      pc.current.addTrack(track, localStreamRef.current);
-    });
-  };
-
-  const createOffer = async () => {
-    const offerDescription = await pc.current.createOffer();
-    await pc.current.setLocalDescription(offerDescription);
-    console.log("session (create offer):", session);
-    socket.emit("create-offer", { offerDescription, sessionName: session });
-  };
-
-  const answerCall = async (offer: RTCSessionDescriptionInit) => {
-    console.log("Answer call triggered");
-
-    await pc.current.setRemoteDescription(new RTCSessionDescription(offer));
-
-    const answerDescription = await pc.current.createAnswer();
-    await pc.current.setLocalDescription(answerDescription);
-
-    console.log("session (answer call):", sessionRef.current);
-
-    socket.emit("answer-call", {
-      answerDescription,
-      sessionName: sessionRef.current,
-    });
-  };
-
-  useEffect(() => {
-    // only when using video the own video stream is displayed
-    /*
-    if (localAudioRef.current && localStreamRef.current) {
-      localAudioRef.current.srcObject = localStreamRef.current;
-    }
-    */
-
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = remoteStreamRef.current;
-    }
-
-    socket.on("offer-made", async (offer) => {
-      console.log("Offer received:", offer);
-      answerCall(offer);
-    });
-
-    socket.on("answer-made", async (answer) => {
-      console.log("Answer received:", answer);
-      await pc.current.setRemoteDescription(new RTCSessionDescription(answer));
-      console.log("set remote description", pc.current);
-    });
-
-    socket.on("add-ice-candidate", (candidate) => {
-      console.log("Ice candidate received:", candidate);
-      pc.current.addIceCandidate(new RTCIceCandidate(candidate));
-    });
-
-    pc.current.onicecandidate = (event) => {
-      if (event.candidate) {
-        const candidate = event.candidate.toJSON();
-        console.log("Emit ICE-candidate:", candidate);
-        socket.emit("ice-candidate", {
-          candidate,
-          sessionName: sessionRef.current,
-        });
-      }
-    };
-
-    pc.current.ontrack = (event) => {
-      event.streams[0].getTracks().forEach((track) => {
-        remoteStreamRef.current.addTrack(track);
-      });
-      console.log("remote stream", remoteStreamRef.current);
-      if (remoteAudioRef.current) {
-        console.log("setting remote video ref");
-        remoteAudioRef.current.srcObject = remoteStreamRef.current;
-      }
-    };
+  const stop = useCallback(() => {
+    generation.current += 1;
+    peer.current?.close();
+    peer.current = null;
+    candidates.current = [];
+    makingOffer.current = false;
+    ignoreOffer.current = false;
+    lastAcceptedOffer.current = "";
+    stream.current?.getTracks().forEach((track) => track.stop());
+    stream.current = null;
+    if (audio.current) audio.current.srcObject = null;
+    setEnabled(false);
   }, []);
 
-  const enableAudio = async () => {
-    if (!session || session === "") {
-      console.log("You need to be in a session to start voice chat.");
-      return;
+  useEffect(() => {
+    async function flushCandidates(current: RTCPeerConnection) {
+      const waiting = candidates.current.splice(0);
+      for (const candidate of waiting) {
+        try { await current.addIceCandidate(candidate); }
+        catch (failure) { if (!ignoreOffer.current) throw failure; }
+      }
     }
-    await setupAudio();
-    console.log("Audio enabled");
-    await createOffer();
-    console.log("Offer created");
-  };
-
-  const disableAudio = () => {
-    pc.current.close();
-    console.log("Audio disabled");
-  };
-
-  const toggleAudio = async () => {
-    if (isAudioEnabled) {
-      disableAudio();
-    } else {
-      enableAudio();
+    async function onOffer(offer: RTCSessionDescriptionInit) {
+      const current = peer.current;
+      if (!current || !stream.current || !isConnected) return;
+      const offerGeneration = generation.current;
+      const stillCurrent = () => peer.current === current && generation.current === offerGeneration;
+      try {
+        const collision = makingOffer.current || current.signalingState !== "stable";
+        const polite = socket.id !== hostId;
+        ignoreOffer.current = !polite && collision;
+        if (ignoreOffer.current) {
+          // The guest may have enabled its microphone after our first offer.
+          // Resend the existing offer so the polite guest can answer it now.
+          if (stillCurrent() && current.localDescription?.type === "offer") {
+            socket.emit("create-offer", { offerDescription: current.localDescription.toJSON(), sessionName: session });
+          }
+          return;
+        }
+        const offerIdentity = offer.sdp?.match(/^o=(.*)$/m)?.[1] || offer.sdp || "";
+        if (offerIdentity && lastAcceptedOffer.current === offerIdentity) return;
+        lastAcceptedOffer.current = offerIdentity;
+        // setRemoteDescription automatically rolls back the polite peer's offer.
+        await current.setRemoteDescription(offer);
+        if (!stillCurrent()) return;
+        await flushCandidates(current);
+        if (!stillCurrent()) return;
+        const answer = await current.createAnswer();
+        if (!stillCurrent()) return;
+        await current.setLocalDescription(answer);
+        if (!stillCurrent()) return;
+        socket.emit("answer-call", { answerDescription: answer, sessionName: session });
+      } catch { if (stillCurrent()) setError("Die Sprachverbindung konnte nicht hergestellt werden."); }
     }
-    setIsAudioEnabled((previous) => !previous);
-  };
+    async function onAnswer(answer: RTCSessionDescriptionInit) {
+      const current = peer.current;
+      if (!current || current.signalingState !== "have-local-offer") return;
+      try { await current.setRemoteDescription(answer); await flushCandidates(current); }
+      catch { setError("Die Sprachverbindung konnte nicht hergestellt werden."); }
+    }
+    async function onCandidate(candidate: RTCIceCandidateInit) {
+      const current = peer.current;
+      if (!current) return;
+      if (!current.remoteDescription) { candidates.current.push(candidate); return; }
+      try { await current.addIceCandidate(candidate); }
+      catch { if (!ignoreOffer.current) setError("Die Sprachverbindung wurde unterbrochen."); }
+    }
+    socket.on("offer-made", onOffer);
+    socket.on("answer-made", onAnswer);
+    socket.on("add-ice-candidate", onCandidate);
+    return () => {
+      socket.off("offer-made", onOffer);
+      socket.off("answer-made", onAnswer);
+      socket.off("add-ice-candidate", onCandidate);
+      stop();
+    };
+  }, [session, isConnected, hostId, stop]);
 
-  return (
-    <div>
-      {/*<audio ref={localAudioRef} autoPlay muted></audio>*/}
-      <audio ref={remoteAudioRef} autoPlay></audio>
-      <button onClick={toggleAudio}>
-        <HeadsetIcon enabled={isAudioEnabled} />
-      </button>
-    </div>
-  );
+  useEffect(() => { if (playerCount > 2) stop(); }, [playerCount, stop]);
+
+  async function toggle() {
+    if (enabled) { stop(); return; }
+    if (pending || !isConnected || playerCount > 2) return;
+    setPending(true);
+    setError("");
+    const requestedGeneration = generation.current;
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("unavailable");
+      const local = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      if (requestedGeneration !== generation.current) { local.getTracks().forEach((track) => track.stop()); return; }
+      stream.current = local;
+      const current = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      peer.current = current;
+      current.onnegotiationneeded = async () => {
+        try {
+          makingOffer.current = true;
+          await current.setLocalDescription();
+          if (peer.current !== current || !current.localDescription) return;
+          socket.emit("create-offer", { offerDescription: current.localDescription.toJSON(), sessionName: session });
+        } catch {
+          if (peer.current === current) setError("Die Sprachverbindung konnte nicht hergestellt werden.");
+        } finally { makingOffer.current = false; }
+      };
+      local.getTracks().forEach((track) => current.addTrack(track, local));
+      current.onicecandidate = (event) => {
+        if (event.candidate) socket.emit("ice-candidate", { candidate: event.candidate.toJSON(), sessionName: session });
+      };
+      current.ontrack = (event) => {
+        if (audio.current) { audio.current.srcObject = event.streams[0]; void audio.current.play().catch(() => setError("Bitte erlaube die Audiowiedergabe in deinem Browser.")); }
+      };
+      current.onconnectionstatechange = () => {
+        if (current.connectionState === "failed") setError("Keine Sprachverbindung möglich. Schalte das Mikrofon aus und erneut ein.");
+      };
+      setEnabled(true);
+    } catch (failure) {
+      stop();
+      setError(failure instanceof DOMException && failure.name === "NotAllowedError" ? "Mikrofonzugriff abgelehnt. Du kannst ohne Sprachchat weiterspielen." : "Mikrofon nicht verfügbar. Prüfe die Freigabe im Browser.");
+    } finally { setPending(false); }
+  }
+
+  return <div className="voice-control">
+    <audio ref={audio} autoPlay />
+    <button className={`microphone-button ${enabled ? "enabled" : ""}`} onClick={toggle} disabled={!isConnected || pending || playerCount > 2} aria-pressed={enabled} aria-label={enabled ? "Mikrofon ausschalten" : "Mikrofon einschalten"} title={playerCount > 2 ? "Sprachchat aktuell für zwei Spieler verfügbar" : "Sprachchat für zwei Spieler"}>
+      {enabled ? <Microphone size={26} weight="fill" /> : <MicrophoneSlash size={26} />}
+    </button>
+    {error && <div className="voice-error" role="status">{error}<button className="text-button" onClick={() => setError("")}>Schließen</button></div>}
+  </div>;
 };
-
 export default VoiceChat;

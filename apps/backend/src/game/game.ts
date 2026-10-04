@@ -84,7 +84,7 @@ export class Game {
     playerIds.forEach((socketId) => {
       index++;
 
-      const player = new Player(index, socketId, `Player ${index}`, cardStack);
+      const player = new Player(index, socketId, `Spieler ${index}`, cardStack);
       players.push(player);
     });
 
@@ -167,7 +167,7 @@ export class Game {
 
   async revealInitialCards() {
     if (this.disposed) return;
-    this.sendMessageToAllPlayers("Reveal two cards");
+    this.sendMessageToAllPlayers("Decke zwei Karten auf.");
     while (!this.disposed && !this.allPlayersRevealedInitialCards()) {
       const playersWithRevealedInitialCards =
         this.getPlayersWithRevealedInitialCards();
@@ -500,20 +500,20 @@ export class Game {
       playersWithLowestPoints.includes(playerClosedRound) &&
       playersWithLowestPoints.length === 1
     ) {
-      this.sendMessageToAllPlayers(`${playerClosedRound.name} won the round!`);
+      this.sendMessageToAllPlayers(`${playerClosedRound.name} gewinnt die Runde!`);
       this.players.forEach((player) => {
         player.totalPoints += player.roundPoints;
       });
       return;
     } else if (playersWithLowestPoints.length === 1) {
       playerClosedRoundLostMessage = playerClosedRoundLostMessage.concat(
-        `${playersWithLowestPoints[0].name} won the round!`
+        `${playersWithLowestPoints[0].name} gewinnt die Runde!`
       );
     } else if (playersWithLowestPoints.length > 1) {
       playerClosedRoundLostMessage = playerClosedRoundLostMessage.concat(
         `\n ${playersWithLowestPoints
           .map((player) => player.name)
-          .join(", ")} scored equally the lowest points!`
+          .join(", ")} haben gemeinsam die wenigsten Punkte!`
       );
     }
     this.players.forEach((player) => {
@@ -521,7 +521,7 @@ export class Game {
       else player.totalPoints += player.roundPoints;
     });
     playerClosedRoundLostMessage = playerClosedRoundLostMessage.concat(
-      `\n ${playerClosedRound.name} points are doubled!`
+      `\n Die Punkte von ${playerClosedRound.name} werden verdoppelt!`
     );
     this.sendMessageToAllPlayers(playerClosedRoundLostMessage);
   }
@@ -575,14 +575,14 @@ export class Game {
       if (playersWithHighestPoints.length === 1) {
         const playerWithHighestPoints = playersWithHighestPoints[0];
         this.sendMessageToAllPlayers(
-          `${playerWithHighestPoints.name} lost with ${playerWithHighestPoints.totalPoints}!`
+          `${playerWithHighestPoints.name} erreicht ${playerWithHighestPoints.totalPoints} Punkte. Die Partie ist beendet.`
         );
       } else {
         const playerNames = playersWithHighestPoints
           .map((player) => player.name)
           .join(", ");
         this.sendMessageToAllPlayers(
-          `Multiple players: ${playerNames} lost with ${highestPoints} points!`
+          `${playerNames} erreichen ${highestPoints} Punkte. Die Partie ist beendet.`
         );
       }
       const playersWithLowestPoints = this.players.filter(
@@ -607,8 +607,8 @@ export class Game {
       if (playerThatLeftSession.length > 0) {
         this.sendMessageToAllPlayers(
           `${playerThatLeftSession.map(
-            (player) => player.name + " "
-          )} left the session!`
+            (player) => player.name
+          ).join(", ")} verlässt den Raum. Die Partie wurde beendet.`
         );
         this.phase = gamePhase.gameEnded;
         this.sendNullGameUpdate();

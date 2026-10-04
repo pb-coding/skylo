@@ -1,18 +1,21 @@
-import { useState, useEffect, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import { socket } from "./socket";
 
-import GameCanvas from "./components/GameCanvas";
+const GameCanvas = lazy(() => import("./components/GameCanvas"));
 import { Footer } from "./components/Footer";
 import { SessionManager } from "./components/SessionManager";
 import { Game } from "./types/gameTypes";
 import MessageDisplay from "./components/MessageDisplay";
 import TopFixedChips from "./components/TopFixedChips";
+import TurnCue from "./components/TurnCue";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 export default function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const messageTimer = useRef<ReturnType<typeof setTimeout>>();
   const disconnectedSinceConnect = useRef(false);
   const [hostId, setHostId] = useState("");
+  const [focusedCard, setFocusedCard] = useState<[number, number] | null>(null);
   const [session, setSession] = useState("");
   const [clientsInRoom, setClientsInRoom] = useState(0);
   const [gameData, setGameData] = useState<Game | null>(null);
@@ -20,6 +23,7 @@ export default function App() {
 
   const showStartGameButton = isConnected && session !== "" && clientsInRoom >= 2 && hostId === socket.id;
   const showNextGameButton = gameData?.phase === "new round";
+  const showNewGameButton = isConnected && hostId === socket.id && clientsInRoom >= 2 && gameData?.phase === "game ended";
 
   function setTempMessage(message: string) {
     clearTimeout(messageTimer.current);
@@ -86,11 +90,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (session === "") setGameData(null);
+    if (session === "") { setGameData(null); setFocusedCard(null); }
   }, [session]);
 
   return (
-    <div className="bg-teal-900 font-theme w-screen h-screen">
+    <div className={`skylo-app ${gameData ? "in-game" : "in-lobby"}`}>
       {!gameData && (
         <SessionManager
           isConnected={isConnected}
@@ -101,8 +105,8 @@ export default function App() {
           showStartGameButton={showStartGameButton}
         />
       )}
-      {!isConnected && <p role="status" className="relative z-30 bg-teal-950 text-white text-center p-2">Verbindung zum Spielserver unterbrochen. Aktionen sind vorübergehend gesperrt.</p>}
-      <GameCanvas session={session} gameData={gameData} isConnected={isConnected} />
+      {!isConnected && <p role="status" className="connection-banner">Verbindung zum Spielserver unterbrochen. Aktionen sind vorübergehend gesperrt.</p>}
+      {gameData && <main className="game-stage" aria-label="3D-Spieltisch"><ErrorBoundary canLeaveSession><Suspense fallback={<p role="status" className="scene-loading">Dein Spieltisch wird vorbereitet …</p>}><GameCanvas session={session} gameData={gameData} isConnected={isConnected} focusedCard={focusedCard} /></Suspense></ErrorBoundary><TurnCue gameData={gameData} connected={isConnected} /></main>}
       <MessageDisplay message={messageDispaly} />
       {gameData && session !== "" && (
         <Footer
@@ -111,11 +115,13 @@ export default function App() {
           clientsInRoom={clientsInRoom}
           gameData={gameData}
           showNextGameButton={showNextGameButton}
+          showNewGameButton={showNewGameButton}
+          onFocusCard={setFocusedCard}
           setClientsInRoom={setClientsInRoom}
           setSession={setSession}
         />
       )}
-      <TopFixedChips session={session} />
+      <TopFixedChips key={session} session={session} isConnected={isConnected} playerCount={clientsInRoom} hostId={hostId} />
     </div>
   );
 }

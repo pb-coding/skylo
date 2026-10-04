@@ -58,4 +58,5 @@ export type Game = {
   cardStack: CardStack;
   discardPile: Card[];
   phase: string;
+  round: number;
 };
