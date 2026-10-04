@@ -1,0 +1,17 @@
+version: "3.1"
+
+services:
+  skyjo-fe:
+    image: ghcr.io/pb-coding/skyjo-fe
+    container_name: skyjo-fe
+    ports:
+      - "5173:5173"
+    networks:
+      - default
+      - swag_net
+
+networks:
+  default:
+  swag_net:
+    external:
+      name: swag_net

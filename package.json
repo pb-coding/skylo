@@ -1,0 +1,14 @@
+{
+  "name": "skylo",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "deps": "npm ci --prefix apps/frontend && npm ci --prefix apps/backend",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "npm run dev --prefix apps/frontend -- --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:backend": "npm run dev --prefix apps/backend",
+    "build": "npm run build --prefix apps/frontend && npm run build --prefix apps/backend",
+    "lint": "npm run lint --prefix apps/frontend"
+  }
+}

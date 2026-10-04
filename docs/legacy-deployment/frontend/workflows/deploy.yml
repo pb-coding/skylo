@@ -1,0 +1,47 @@
+name: Build and push docker image and deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Github Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.actor }}/skyjo-fe:latest
+
+  deploy:
+    needs: build_and_push
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: appleboy/ssh-action@v1.0.0
+      name: Fetch and run deploy script on remote
+      with:
+        host: ${{ secrets.DEPLOY_HOST }}
+        username: ${{ secrets.DEPLOY_USER }}
+        key: ${{ secrets.DEPLOY_KEY }}
+        port: 22
+        script: |
+          curl -O https://raw.githubusercontent.com/pb-coding/skyjo-fe/main/.github/scripts/deploy.sh
+          chmod +x deploy.sh
+          ./deploy.sh ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+          rm deploy.sh
