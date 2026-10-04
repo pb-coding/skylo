@@ -1,0 +1,42 @@
+# Skylo monorepo
+
+Frontend and backend of Skylo, imported with both complete Git histories.
+
+## Structure
+
+- `apps/frontend`: React, Three.js and Vite
+- `apps/backend`: Express and Socket.IO
+- `scripts`: shared development commands
+- `docs/legacy-deployment`: original deployment workflows and scripts, retained as reference
+
+## Development
+
+Use Node from `.nvmrc` (18.20.8, matching the original applications). Node 18 is end of life; upgrading is a separate follow-up.
+
+```sh
+npm run setup
+npm run deps
+npm run dev
+```
+
+Frontend: port 5173. Backend: port 3001. These local addresses are for development; cloud browser access needs separate forwarding. Stop both with Ctrl+C. The backend uses the original ts-node command; restart after backend edits.
+
+```sh
+npm run build
+npm run lint
+```
+
+Both apps retain their existing lockfiles and install dependencies independently. Root commands orchestrate them without changing dependency resolution. CI builds both apps. Frontend lint has an existing exhaustive-deps warning in CardCache.tsx and is not a CI gate yet. Backend npm test is the original placeholder.
+
+## Environment and deployment
+
+`npm run setup` creates ignored local `.env` files from `.env.example` without overwriting existing settings. Never commit actual secrets. Previously tracked `.env` files are removed from the new tree but remain in imported history; inspect and rotate any historical credentials before publication if applicable.
+
+Docker build contexts remain the app directories:
+
+```sh
+docker build -t skylo-frontend apps/frontend
+docker build -t skylo-backend apps/backend
+```
+
+The old frontend compose file is retained inside its app as a legacy reference. Automatic deployment and the Hetzner development preview are deferred; the archived deployment files are not active GitHub workflows. Original repos remain untouched. A new GitHub repository named `skylo` is the intended destination.
