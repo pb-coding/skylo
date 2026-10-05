@@ -40,6 +40,10 @@ Das GitHub-Secret `TYPESAFE_API_KEY` wird aus dem jeweiligen Environment (`previ
 
 GitHub-Environment-Variablen `TYPESAFE_MODEL`, `TYPESAFE_MAX_REQUESTS`, `TYPESAFE_MAX_REQUESTS_PER_MATCH` und `TYPESAFE_DECISION_TIMEOUT_MS` konfigurieren den Betrieb. Der Workflow übernimmt für das Gesamtbudget standardmäßig **0**. Das bewilligte Limit von zehn Aufrufen gilt für die Codex-Verbindungstests; diese Umsetzung aktiviert deshalb keine zusätzlichen kostenpflichtigen Preview-Partien. Für vollständige Partien oder Vergleichsserien muss ein eigenes Budget eingerichtet werden. Produktion bleibt ohne eigene Freigabe ebenfalls gesperrt.
 
+Nach gesonderter Freigabe zum manuellen Testen mit höchstens **2 €** aktiviert der Workflow ausschließlich die Preview von **PR #6** mit dem festen Modell `jev-1.13.0` und einem kumulativen Limit von **200 Modellanfragen** (ebenfalls höchstens 200 je Partie). Das Limit gilt gemeinsam für alle Räume, Spieler und Besucher dieser Preview. Der vorhandene persistente Zähler wird nicht zurückgesetzt. Die normale Konfiguration für Produktion und andere Previews bleibt unverändert.
+
+Die aktuelle Live-Dokumentation nennt 0,042 USD pro Million Eingabetokens, kostenlose Ausgabetokens und höchstens 64k Kontexttokens pro Anfrage. Konservativ mit 65.536 Tokens gerechnet ergibt das für sämtliche 200 Anfragen höchstens **0,5505024 USD** an Modellkosten. Das schafft deutlichen Abstand zum freigegebenen Eurobetrag, auch gegenüber den beobachteten Anfragen mit nur einigen Tausend Tokens. Dies ist eine harte Anfragegrenze anhand des aktuellen Tarifs, keine direkte Euro-Abrechnungssperre beim Anbieter; Tarifwechsel, Wechselkurs und etwaige Steuern werden nicht vom Backend abgerechnet. Nach Ausschöpfen der Anfragegrenze nutzen bestehende Partien sichtbare Ersatzentscheidungen und neue Jev-Konfigurationen werden abgelehnt. Ein höheres Limit oder zusätzliche Instanzen benötigen eine neue Freigabe.
+
 ## Protokolle und Replay
 
 Neue Protokolle verwenden Schema `2`. Der Offline-Verifier unterstützt weiterhin Schema `1`. Die akzeptierten Aktionen sind die Quelle des Replays; es gibt dabei keine Modellaufrufe.

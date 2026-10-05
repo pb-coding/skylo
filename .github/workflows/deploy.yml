@@ -91,6 +91,14 @@ jobs:
           else
             args="prod $IMAGE_TAG"
           fi
+          # Explicitly authorized manual trial for PR #6 only; never enables production.
+          # 200 * 65,536 input tokens * $0.042 / 1,000,000 <= $0.551 at the current tariff.
+          # Output tokens are free. The persistent counter is shared by all games in this preview.
+          if [[ "$PR_NUMBER" == "6" ]]; then
+            export TYPESAFE_MODEL=jev-1.13.0
+            export TYPESAFE_MAX_REQUESTS=200
+            export TYPESAFE_MAX_REQUESTS_PER_MATCH=200
+          fi
           python3 -c 'import json, os; print(json.dumps({"registryToken": os.environ["GHCR_TOKEN"], "typesafe": {key: os.environ[key] for key in ["TYPESAFE_API_KEY", "TYPESAFE_MODEL", "TYPESAFE_MAX_REQUESTS", "TYPESAFE_MAX_REQUESTS_PER_MATCH", "TYPESAFE_DECISION_TIMEOUT_MS"]}}))' |
             ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "GHCR_USER='${{ github.actor }}' bash /home/pb/apps/skylo/deploy/ci-deploy.sh up $args"
       - name: Preview URL
