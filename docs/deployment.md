@@ -33,3 +33,11 @@ For private GHCR packages, log in with a package-read token before manual `up`. 
 ## Environment limits
 
 The current app uses WebRTC peer connections for voice chat. STUN/TURN is not configured, so calls across some NATs or restrictive networks can fail even when the game and Socket.IO work. The existing application stores games only in process memory; each instance is one backend replica.
+
+## TypeSafe Jev
+
+The environment secret `TYPESAFE_API_KEY` is forwarded to the backend only via SSH stdin. GitHub environment variables configure `TYPESAFE_MODEL`, `TYPESAFE_MAX_REQUESTS`, `TYPESAFE_MAX_REQUESTS_PER_MATCH`, and `TYPESAFE_DECISION_TIMEOUT_MS`. Total usage defaults to **0**: a key does not authorize paid preview or production games. Codex smoke-test authorization does not increase deployment budgets. See [Jev operation and validation](jev-bot-implementation.md).
+
+Stack environment files now contain the backend secret and are created with private permissions. Avoid printing them or rendered Compose configurations. The persistent `typesafe-usage` volume preserves the request count across updates and manual rollbacks; manual image updates also preserve the existing TypeSafe settings. Removing a preview removes its usage volume. Each stack has a separate request cap; account-wide limits across independently authorized stacks remain an operator responsibility.
+
+The CI helper `ci-deploy.sh up` now consumes a JSON object containing `registryToken` and the whitelisted `typesafe` settings over stdin. Direct manual operations continue to use `deploy.sh` with an already configured registry login.

@@ -1,7 +1,7 @@
 import { GameCore, CoreConfig } from "../core/GameCore";
-import { EndReason, GameAction, GameEvent, PlaybackCommand, RULE_VERSION } from "../../protocol/gameProtocol";
+import { DecisionDiagnostics, EndReason, GameAction, GameEvent, PlaybackCommand, RULE_VERSION } from "../../protocol/gameProtocol";
 
-export const RECORD_SCHEMA_VERSION = 1;
+export const RECORD_SCHEMA_VERSION = 2;
 export const MAX_RECORD_ACTIONS = 100_000;
 export const MAX_CONTROL_RECORDS = 100_000;
 
@@ -17,6 +17,7 @@ export type RecordedAction = {
   decisionMs: number;
   explanation?: string;
   fallback: boolean;
+  diagnostics?: DecisionDiagnostics;
   events: GameEvent[];
   fingerprint: string;
 };
@@ -31,7 +32,7 @@ export type RecordedCompletion = {
   fingerprint: string;
 };
 export type MatchRecord = {
-  schemaVersion: typeof RECORD_SCHEMA_VERSION;
+  schemaVersion: 1 | typeof RECORD_SCHEMA_VERSION;
   ruleVersion: string;
   recordedAt: string;
   config: CoreConfig;

@@ -124,11 +124,14 @@ export function Footer({ isConnected, sessionId, state, gameData, focusPlayerId,
                 {ended && player.place === 1 && <Trophy size={18} weight="fill" aria-label="Gewonnen" />}</p>
               <p className="rail-player-kind">{player.kind === "bot"
                 ? player.botConfig?.strategyId === "random" ? "Zufallsbot"
-                  : player.botConfig?.strategyId === "rules" ? `Regel-KI · ${difficulties[player.botConfig.difficulty]}`
-                    : `${player.botConfig?.strategyId ?? "Bot"}${player.botConfig ? ` · ${difficulties[player.botConfig.difficulty]}` : ""}`
+                  : player.botConfig?.strategyId === "rules" ? `Regel-KI · ${difficulties[player.botConfig.difficulty ?? "medium"]}`
+                    : player.botConfig?.strategyId === "typesafe-jev-choice" ? "Jev · TypeSafe"
+                    : `${player.botConfig?.strategyId ?? "Bot"}${player.botConfig ? ` · ${difficulties[player.botConfig.difficulty ?? "medium"]}` : ""}`
                 : "Spieler"}</p>
               <p className="player-score"><span>Runde:</span> {player.roundPoints}</p>
               <p className="player-score"><span>Gesamt:</span> {player.totalPoints}</p>
+              {gameData.lastDecision?.playerId === player.id && gameData.lastDecision.fallback &&
+                <p className="rail-player-closed" role="status">Ersatzentscheidung · Regel-KI</p>}
               {player.closedRound && <p className="rail-player-closed">Runde beendet</p>}
               <span className="sr-only">{playersTurn ? "Ist am Zug" : "Wartet"}</span>
             </div>
@@ -186,13 +189,19 @@ export function Footer({ isConnected, sessionId, state, gameData, focusPlayerId,
             <p className="muted small">Ablage: {gameData.discardPile[gameData.discardPile.length - 1] ?? "leer"} · Nachziehstapel: {gameData.cardStack.cards.length} Karten</p>
             {hasBots && <div className="bot-explanation">
               <label><input type="checkbox" checked={showExplanation}
-                onChange={(event) => setShowExplanation(event.target.checked)} /> Bot-Begründungen anzeigen</label>
-              {showExplanation && gameData.lastDecision && <p aria-live="polite"><strong>{lastDecisionPlayer?.name || "Bot"}:</strong> {gameData.lastDecision.explanation}{gameData.lastDecision.fallback ? " (Ersatzentscheidung)" : ""}</p>}
+                onChange={(event) => setShowExplanation(event.target.checked)} /> Bot-Entscheidungen anzeigen</label>
+              {showExplanation && gameData.lastDecision && <>
+                <p aria-live="polite"><strong>{lastDecisionPlayer?.name || "Bot"}:</strong> {gameData.lastDecision.explanation}{gameData.lastDecision.fallback ? " (Ersatzentscheidung)" : ""}</p>
+                {gameData.lastDecision.diagnostics?.source === "model" && <p className="muted small">
+                  {gameData.lastDecision.diagnostics.model} · {(gameData.lastDecision.decisionMs / 1000).toLocaleString("de-DE", { maximumFractionDigits: 2 })} s · {gameData.lastDecision.diagnostics.inputTokens} Eingabetokens.
+                  Die Antwortwahrscheinlichkeiten bewerten die Aktionsauswahl; sie sind keine Gewinnwahrscheinlichkeiten.
+                </p>}
+              </>}
             </div>}
           </div>
         </details>
         {hasBots && <details className="keyboard-actions footer-popup" onToggle={openPopup}>
-          <summary>Bot-Tempo <CaretDown size={16} /></summary>
+          <summary>Bot-Tempo{gameData.playback.thinkingStrategyId === "typesafe-jev-choice" && gameData.playback.thinking ? " · Jev entscheidet …" : ""} <CaretDown size={16} /></summary>
           <div className="keyboard-panel">
             <PlaybackControls sessionId={sessionId} playback={gameData.playback} isConnected={isConnected}
               canControl={!!state?.canControl} ended={ended} hasBots onMessage={onMessage} />

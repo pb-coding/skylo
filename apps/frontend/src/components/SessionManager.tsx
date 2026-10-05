@@ -95,19 +95,35 @@ export function SessionManager({ isConnected, sessionId, state, onJoined, onLeft
                 </div>
                 {player.kind === "bot" && player.botConfig && <div className="lobby-bot-controls">
                   <select aria-label={`Strategie für ${player.name}`} value={player.botConfig.strategyId}
-                    disabled={disabled || !canConfigure} onChange={(event) => updateBot(player.id, { ...player.botConfig!, strategyId: event.target.value })}>
-                    <option value="rules">Regel-KI</option><option value="random">Zufallsbot</option>
+                    disabled={disabled || !canConfigure} onChange={(event) => {
+                      const strategy = state.botCatalog.find(entry => entry.id === event.target.value);
+                      if (strategy) updateBot(player.id, { strategyId: strategy.id, version: strategy.version,
+                        ...(strategy.profiles.length ? { profile: strategy.profiles[0].id } : { difficulty: "medium" as Difficulty }) });
+                    }}>
+                    {state.botCatalog.map(strategy => <option key={strategy.id} value={strategy.id} disabled={!strategy.available}>
+                      {strategy.name}{strategy.available ? "" : " · nicht verfügbar"}
+                    </option>)}
                   </select>
-                  <select aria-label={`Schwierigkeit für ${player.name}`} value={player.botConfig.difficulty}
-                    disabled={disabled || !canConfigure || player.botConfig.strategyId === "random"}
-                    onChange={(event) => updateBot(player.id, { ...player.botConfig!, difficulty: event.target.value as Difficulty })}>
-                    {Object.entries(difficultyNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  {state.botCatalog.find(entry => entry.id === player.botConfig?.strategyId)?.profiles.length ?
+                    <select aria-label={`Profil für ${player.name}`} value={player.botConfig.profile}
+                      disabled={disabled || !canConfigure}
+                      onChange={(event) => updateBot(player.id, { ...player.botConfig!, profile: event.target.value })}>
+                      {state.botCatalog.find(entry => entry.id === player.botConfig?.strategyId)?.profiles.map(profile =>
+                        <option key={profile.id} value={profile.id}>{profile.name}</option>)}
+                    </select> :
+                    <select aria-label={`Schwierigkeit für ${player.name}`} value={player.botConfig.difficulty}
+                      disabled={disabled || !canConfigure || player.botConfig.strategyId === "random"}
+                      onChange={(event) => updateBot(player.id, { ...player.botConfig!, difficulty: event.target.value as Difficulty })}>
+                      {(state.botCatalog.find(entry => entry.id === player.botConfig?.strategyId)?.difficulties ?? []).map(value =>
+                        <option key={value} value={value}>{difficultyNames[value]}</option>)}
+                    </select>}
                   {canConfigure && <button type="button" className="text-button" disabled={disabled}
                     onClick={() => void command("remove-bot", { sessionId, playerId: player.id })}>Entfernen</button>}
                 </div>}
               </li>)}
             </ul>
+            {state.botCatalog.filter(strategy => !strategy.available).map(strategy =>
+              <p key={strategy.id} className="muted small">{strategy.name}: {strategy.unavailableReason}</p>)}
             {state.players.length === 0 && <p className="waiting-note">Füge als Gastgeber mindestens zwei Bots hinzu, um ihnen beim Spielen zuzuschauen.</p>}
             {canConfigure && <>
               <div className="lobby-actions">
@@ -120,7 +136,7 @@ export function SessionManager({ isConnected, sessionId, state, onJoined, onLeft
                 <label htmlFor="match-seed">Startwert für Vergleichspartien (optional)</label>
                 <input id="match-seed" maxLength={80} value={seed} disabled={disabled}
                   placeholder="Neue Kartenverteilung" onChange={(event) => setSeed(event.target.value)} />
-                <p className="muted small">Derselbe Startwert und dieselben Bot-Einstellungen machen reine Bot-Partien reproduzierbar.</p>
+                <p className="muted small">Derselbe Startwert wiederholt die Kartenverteilung. Jevs Antworten können sich unterscheiden; gespeicherte Partien lassen sich exakt nachspielen.</p>
               </div>}
             </>}
             {!state.canControl && <p className="waiting-note">Der Gastgeber konfiguriert die Bots und startet die Partie.</p>}

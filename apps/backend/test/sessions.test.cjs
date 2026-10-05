@@ -383,3 +383,39 @@ test('repeated network starts and stops leave no runner or per-match socket list
     assert.deepEqual(serverSocket.eventNames().map(event => [event, serverSocket.listenerCount(event)]), events);
   }
 });
+
+test('server catalog exposes Jev profiles and validates them; socket decisions retain model/fallback metadata', async () => {
+  const { registerBotStrategy } = require('../src/game/bots');
+  const { JevBot } = require('../src/game/bots/jev');
+  const { JevProvider, MemoryRequestLedger } = require('../src/game/bots/jevProvider');
+  let calls = 0;
+  const provider = new JevProvider({ model:'jev-1.13.0',timeoutMs:5000,maxRequests:10,maxRequestsPerMatch:1,concurrency:1,failureThreshold:2,cooldownMs:60000 },new MemoryRequestLedger(),'socket-fixture-key',async(_url,init)=>{
+    calls++;
+    const ids=Object.keys(JSON.parse(init.body).questions.action.criteria);
+    return new Response(JSON.stringify({ model:'jev-1.13.0',usage:{ input_tokens:100,output_tokens:20 },answers:{ action:{ type:'choice',choice:ids[0],confidence:0.9,probabilities:Object.fromEntries(ids.map(id=>[id,id===ids[0]?1:0])) } } }),{ headers:{ 'content-type':'application/json' } });
+  });
+  const unregister=registerBotStrategy({ id:'typesafe-jev-choice',version:'socket-fixture',name:'Jev · TypeSafe',profiles:[{ id:'choice',name:'Jev Choice' }],factory:()=>{
+    const strategy=new JevBot(provider);Object.defineProperty(strategy,'version',{ value:'socket-fixture' });return strategy;
+  } });
+  try {
+    const host=await client();const sessionId='jev-socket-room';const lobby=await join(host,sessionId,'spectator');
+    const catalog=lobby.botCatalog.find(entry=>entry.id==='typesafe-jev-choice');
+    assert.equal(catalog.available,true);assert.deepEqual(catalog.difficulties,[]);assert.deepEqual(catalog.profiles,[{ id:'choice',name:'Jev Choice' }]);assert.equal(calls,0);
+    for(const config of [{ strategyId:'typesafe-jev-choice',profile:'missing' },{ strategyId:'typesafe-jev-choice',profile:'choice',difficulty:'medium' },{ strategyId:'typesafe-jev-choice',profile:'choice',apiKey:'evil' },{ strategyId:'typesafe-jev-choice',profile:'choice',model:'evil' }])
+      assert.equal(await request(host,'add-bot',{ sessionId,config }),'error:invalid');
+    assert.equal(await request(host,'add-bot',{ sessionId,config:{ strategyId:'typesafe-jev-choice',profile:'choice' } }),'success');
+    assert.equal(await bot(host,sessionId),'success');assert.equal(calls,0);
+    assert.equal(await request(host,'new-game',{ sessionId }),'success');assert.equal(await control(host,sessionId,{ type:'pause' }),'success');
+    await waitFor(()=>host.gameSnapshot?.playback.paused && !host.gameSnapshot.playback.thinking);
+    const revision=host.gameSnapshot.revision;
+    assert.equal(await control(host,sessionId,{ type:'delay',delayMs:0 }),'success');
+    assert.equal(await control(host,sessionId,{ type:'step-action' }),'success');
+    await waitFor(()=>host.gameSnapshot?.revision===revision+1);
+    assert.equal(host.gameSnapshot.lastDecision.diagnostics.source,'model');assert.equal(calls,1);
+    assert.equal(await control(host,sessionId,{ type:'step-action' }),'success');
+    await waitFor(()=>host.gameSnapshot?.revision===revision+2);
+    assert.equal(host.gameSnapshot.lastDecision.fallback,true);assert.equal(host.gameSnapshot.lastDecision.diagnostics.failure,'budget-exhausted');assert.equal(calls,1);
+    assert.equal(await request(host,'stop-match',{ sessionId }),'success');
+    const exported=await request(host,'export-match',{ sessionId });assert.equal(exported.code,'success');assert.equal(verifyRecord(exported.record).valid,true);assert.equal(calls,1);
+  } finally { unregister(); }
+});

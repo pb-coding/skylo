@@ -3,7 +3,7 @@ import { Socket } from "socket.io";
 import { io } from "../server";
 import { GameRunner } from "./runtime/GameRunner";
 import { allGames } from "./game";
-import { validateBotConfig } from "./bots";
+import { botCatalog, validateBotConfig } from "./bots";
 import { sessionRoom } from "./sessionRoom";
 import { acknowledge, isRecord, isSessionId, SessionResponse } from "./sessionValidation";
 import { ActionRequest, ParticipantRole, PlaybackCommand, PlayerSpec, PROTOCOL_VERSION, SessionParticipant, SessionView } from "../protocol/gameProtocol";
@@ -33,7 +33,7 @@ function sessionView(sessionId: string, session: Session, member: Member): Sessi
     ownPlayerId: member.playerId, role: member.role, maxPlayers: MAX_PLAYERS, maxSpectators: MAX_SPECTATORS,
     players: session.players.map(player => ({ ...player, botConfig: player.botConfig ? { ...player.botConfig } : undefined })),
     participants: [...session.members.values()].map(({ socketId: _socketId, ...participant }) => participant),
-    running: running(session), canControl: session.hostId === member.id, hasExport: Boolean(session.runner?.hasExport) };
+    running: running(session), canControl: session.hostId === member.id, hasExport: Boolean(session.runner?.hasExport), botCatalog: botCatalog() };
 }
 function broadcastSession(sessionId: string, session: Session) {
   for (const member of session.members.values()) {

@@ -46,7 +46,7 @@ export default function PlaybackControls({ sessionId, playback, isConnected, can
       <h2>Bot-Tempo</h2>
       <p role="status" className="playback-status">{ended ? "Partie beendet" : playback.paused
         ? playback.stepping ? "Einzelschritt läuft" : "Pausiert"
-        : playback.thinking ? "Bot überlegt …" : "Automatische Aktionen laufen"}</p>
+        : playback.thinking ? playback.thinkingStrategyId === "typesafe-jev-choice" ? "Jev entscheidet …" : "Bot überlegt …" : "Automatische Aktionen laufen"}</p>
     </div>
     <label htmlFor="bot-tempo">Tempo</label>
     <div className="tempo-endpoints"><span>Langsam</span><span>Schnell</span></div>
@@ -70,7 +70,7 @@ export default function PlaybackControls({ sessionId, playback, isConnected, can
       }}>Maximales Tempo</Button>
     </div>}
     <p className="playback-help">{canControl
-      ? "Deine Einstellung gilt für die ganze Partie. Sie steuert die Pause zwischen Bot-Aktionen; Menschen spielen in ihrem eigenen Tempo."
+      ? "Deine Einstellung gilt für die ganze Partie. Sie steuert die zusätzliche Wartezeit. Jevs Antwortzeit bleibt auch bei maximalem Tempo bestehen. Menschen spielen in ihrem eigenen Tempo."
       : "Der Gastgeber steuert das Tempo und die Pause für alle Zuschauer."}</p>
   </section>;
 }

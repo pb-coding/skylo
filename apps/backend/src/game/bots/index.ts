@@ -1,4 +1,4 @@
-import { BotConfig, Difficulty } from "../../protocol/gameProtocol";
+import { BotCatalogEntry, BotConfig, Difficulty } from "../../protocol/gameProtocol";
 import { RandomBot } from "./random";
 import { RuleBot } from "./rules";
 import { BotFactory, BotRegistration, BotStrategy } from "./types";
@@ -50,13 +50,18 @@ export function validateBotConfig(value: unknown): BotConfig | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const candidate = value as Record<string, unknown>;
   if (!Object.prototype.hasOwnProperty.call(candidate, "strategyId") ||
-      !Object.prototype.hasOwnProperty.call(candidate, "difficulty") ||
-      Object.keys(candidate).some((key) => !["strategyId", "difficulty", "version"].includes(key)) ||
+      Object.keys(candidate).some((key) => !["strategyId", "difficulty", "profile", "version"].includes(key)) ||
       typeof candidate.strategyId !== "string" || !identifier.test(candidate.strategyId) ||
-      !difficulties.includes(candidate.difficulty as Difficulty) ||
       (candidate.version !== undefined && (typeof candidate.version !== "string" || !identifier.test(candidate.version)))) return null;
   const registration = resolveStrategy(candidate.strategyId, candidate.version as string | undefined);
-  return registration ? { strategyId: registration.id, version: registration.version, difficulty: candidate.difficulty as Difficulty } : null;
+  if (!registration || registration.availability?.().available === false) return null;
+  if (registration.profiles?.length) {
+    if (candidate.difficulty !== undefined || typeof candidate.profile !== "string" ||
+        !registration.profiles.some(profile => profile.id === candidate.profile)) return null;
+    return { strategyId: registration.id, version: registration.version, profile: candidate.profile };
+  }
+  if (candidate.profile !== undefined || !(registration.difficulties ?? difficulties).includes(candidate.difficulty as Difficulty)) return null;
+  return { strategyId: registration.id, version: registration.version, difficulty: candidate.difficulty as Difficulty };
 }
 
 export function createBot(config: BotConfig): BotStrategy {
@@ -72,6 +77,15 @@ export function createBot(config: BotConfig): BotStrategy {
 
 export function strategyInfo(): Array<{ id: string; version: string; name: string }> {
   return Array.from(registry.values()).flatMap((versions) => Array.from(versions.values(), ({ id, version, name }) => ({ id, version, name })));
+}
+
+export function botCatalog(): BotCatalogEntry[] {
+  return Array.from(registry.values(), versions => Array.from(versions.values())[versions.size - 1]).map(registration => ({
+    id: registration.id, version: registration.version, name: registration.name,
+    ...(registration.availability?.() ?? { available: true }),
+    difficulties: registration.profiles?.length ? [] : [...(registration.difficulties ?? difficulties)],
+    profiles: registration.profiles?.map(profile => ({ ...profile })) ?? [],
+  }));
 }
 
 registerBotStrategy({ id: "rules", version: "1", name: "Regel-KI", factory: (config) => new RuleBot(config.difficulty) });

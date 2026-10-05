@@ -28,8 +28,10 @@ import {
 import dotenv from "dotenv";
 import { acknowledge, isRecord, validDescription, validIceCandidate } from "./game/sessionValidation";
 import { sessionRoom } from "./game/sessionRoom";
+import { configureJev } from "./game/bots/configureJev";
 
 dotenv.config();
+configureJev();
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 export const httpServer = new Server(app);

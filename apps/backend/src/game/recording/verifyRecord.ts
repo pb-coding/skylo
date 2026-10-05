@@ -1,6 +1,7 @@
 import { GameCore } from "../core/GameCore";
 import { EndReason, RULE_VERSION } from "../../protocol/gameProtocol";
 import { MatchRecord, MAX_CONTROL_RECORDS, MAX_RECORD_ACTIONS, RECORD_SCHEMA_VERSION } from "./MatchRecorder";
+import { validDecisionDiagnostics } from "./decisionDiagnostics";
 
 export type VerificationResult = { valid: boolean; error?: string; actions: number };
 
@@ -54,7 +55,8 @@ function configuration(value: unknown): boolean {
     ids.add(player.id);
     if (player.kind === "bot") {
       if (!object(player.botConfig) || !string(player.botConfig.strategyId) ||
-        !["easy", "medium", "hard"].includes(player.botConfig.difficulty as string) ||
+        !(typeof player.botConfig.profile === "string" && string(player.botConfig.profile, 80) && player.botConfig.difficulty === undefined ||
+          player.botConfig.profile === undefined && ["easy", "medium", "hard"].includes(player.botConfig.difficulty as string)) ||
         (player.botConfig.version !== undefined && !string(player.botConfig.version))) return false;
     }
   }
@@ -64,7 +66,7 @@ function configuration(value: unknown): boolean {
 }
 
 function recordShape(value: unknown): value is MatchRecord {
-  if (!object(value) || value.schemaVersion !== RECORD_SCHEMA_VERSION || value.ruleVersion !== RULE_VERSION ||
+  if (!object(value) || ![1, RECORD_SCHEMA_VERSION].includes(value.schemaVersion as number) || value.ruleVersion !== RULE_VERSION ||
     !timestamp(value.recordedAt) || !configuration(value.config) || !fingerprint(value.initialFingerprint) ||
     !Array.isArray(value.actions) || value.actions.length > MAX_RECORD_ACTIONS ||
     !Array.isArray(value.controls) || value.controls.length > MAX_CONTROL_RECORDS || !object(value.completion)) return false;
@@ -76,6 +78,8 @@ function recordShape(value: unknown): value is MatchRecord {
       !integer(entry.revision, 1) || !integer(entry.round, 1, 10_000) || !integer(entry.turn) ||
       !finite(entry.decisionMs) || entry.decisionMs < 0 || entry.decisionMs > 86_400_000 || typeof entry.fallback !== "boolean" ||
       (entry.explanation !== undefined && (typeof entry.explanation !== "string" || entry.explanation.length > 8_192)) ||
+      (entry.diagnostics !== undefined && (!validDecisionDiagnostics(entry.diagnostics) ||
+        entry.fallback !== (entry.diagnostics.source === "fallback"))) ||
       !Array.isArray(entry.events) || entry.events.length > 256 || !entry.events.every(event) || !fingerprint(entry.fingerprint)) return false;
   }
   for (const entry of value.controls) {
@@ -100,7 +104,7 @@ export function verifyRecord(value: unknown): VerificationResult {
   let actions = 0;
   try {
     if (!object(value)) return { valid: false, error: "Recording must be a JSON object", actions };
-    if (value.schemaVersion !== RECORD_SCHEMA_VERSION) return { valid: false, error: "Unsupported recording schema version", actions };
+    if (![1, RECORD_SCHEMA_VERSION].includes(value.schemaVersion as number)) return { valid: false, error: "Unsupported recording schema version", actions };
     if (value.ruleVersion !== RULE_VERSION) return { valid: false, error: "Unsupported game rule version", actions };
     if (!recordShape(value)) return { valid: false, error: "Malformed or oversized recording", actions };
     const core = new GameCore(value.config);

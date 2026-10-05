@@ -1,6 +1,6 @@
 # Jev als zusätzlicher Skylo Bot
 
-Stand: 5. Oktober 2026. Dieses Konzept beschreibt die Integration; der TypeSafe-Skill ist für Codex installiert. Die Spielintegration und kostenpflichtige Modellaufrufe sind Gegenstand einer späteren Umsetzung.
+Stand: 5. Oktober 2026. Dieses Konzept beschreibt die Integration; der TypeSafe-Skill ist für Codex installiert. Die erste Integration und drei begrenzte API-Prüfungen sind inzwischen umgesetzt; Betrieb, Freigabegrenzen und Validierung stehen in [Jev · TypeSafe: Betrieb und Validierung](jev-bot-implementation.md).
 
 Jev soll als eigener Bot neben Regel-KI und Zufallsbot auswählbar sein. Menschen können gegen ihn spielen, und Zuschauer können Partien mit Jev und anderen Bots verfolgen. Empfehlung für die erste Version: Jev wählt über TypeSafes `Choice` aus allen erlaubten Aktionen. Skylo berechnet bekannte Folgen, prüft die Entscheidung und führt sie aus. Ein späterer Bot, der Jev mit Regeln oder Suche kombiniert, erhält eine eigene Strategiekennung für aussagekräftige Vergleiche.
 
@@ -8,7 +8,7 @@ Jev soll als eigener Bot neben Regel-KI und Zufallsbot auswählbar sein. Mensche
 
 Der [installierte TypeSafe-Skill](../.agents/skills/typesafe-ai/SKILL.md) wurde mit `npx skills add typesafe-ai/skills --skill typesafe-ai --agent codex --yes` installiert. Die Definition und Lizenz liegen im Repository; `skills-lock.json` hält die Quelle und deren Hash fest.
 
-Die Live-Dokumentation unter `https://docs.typesafe.ai/llms.txt` war wegen der Netzwerkregeln dieser Arbeitsumgebung nicht erreichbar. Als vom Skill vorgesehene Ersatzquelle wurden das offizielle JavaScript-SDK `@typesafe-ai/sdk` in Version `0.6.0`, dessen veröffentlichte Typen und das [offizielle SDK-Repository](https://github.com/typesafe-ai/typesafe-sdk-js) geprüft. Das SDK wurde dafür separat heruntergeladen; die Anwendung hat bislang keine neue SDK-Abhängigkeit.
+Bei Erstellung des Konzepts war die Live-Dokumentation unter `https://docs.typesafe.ai/llms.txt` wegen der Netzwerkregeln nicht erreichbar. In der aktualisierten Umgebung wurde sie für die Umsetzung erfolgreich geprüft. Als vom Skill vorgesehene Ersatzquelle wurden das offizielle JavaScript-SDK `@typesafe-ai/sdk` in Version `0.6.0`, dessen veröffentlichte Typen und das [offizielle SDK-Repository](https://github.com/typesafe-ai/typesafe-sdk-js) geprüft. Das SDK wurde dafür separat heruntergeladen; die Anwendung hat bislang keine neue SDK-Abhängigkeit.
 
 Verifiziert sind `TypeSafeClient.systemOne`, `choice`, `score`, `noul`, Abbruch über `AbortSignal`, Tokenverbrauch im Ergebnis und `client.models.list()`. Das SDK verwendet standardmäßig den Modellnamen `jev-latest`. Die tatsächlich verfügbaren Modelle, aktuelle Limits, Preise und Antwortzeiten müssen mit dem verwendeten Account und der Live-Dokumentation vor dem produktiven Anschluss geprüft werden.
 
@@ -128,7 +128,7 @@ Wiederholte Anbieterfehler öffnen einen Circuit Breaker: Nach einer definierten
 
 Die Serverkonfiguration legt Modell, Zeitbudget, erlaubte Nutzung und Obergrenzen für Requests pro Partie sowie insgesamt fest. Tokenverbrauch wird erfasst; zusätzliche Kostenschätzungen benötigen den dann gültigen Tarif. Request-Grenzen lassen sich schon ohne unbekannte Preise hart durchsetzen. Öffentliche Lobby-Einstellungen können weder Modellnamen noch Provider-URL, API-Schlüssel oder Kostenlimits frei überschreiben.
 
-Der Schlüssel bleibt als `TYPESAFE_API_KEY` ausschließlich im Backend beziehungsweise im Deployment-Secret. Preview und Produktion benötigen ihre eigenen freigegebenen Einstellungen. Der Anbieter benötigt einen erlaubten Netzwerkzugang; dieser ist in der aktuellen Entwicklungsumgebung noch nicht vorhanden. Diagnostik enthält keine Zugangsdaten, und SDK-Debug-Logs mit vollständigen Anfragekörpern bleiben im normalen Betrieb ausgeschaltet.
+Der Schlüssel bleibt als `TYPESAFE_API_KEY` ausschließlich im Backend beziehungsweise im Deployment-Secret. Preview und Produktion benötigen ihre eigenen freigegebenen Einstellungen. Der Anbieter benötigt einen erlaubten Netzwerkzugang; dieser ist in der aktualisierten Entwicklungsumgebung jetzt vorhanden. Diagnostik enthält keine Zugangsdaten, und SDK-Debug-Logs mit vollständigen Anfragekörpern bleiben im normalen Betrieb ausgeschaltet.
 
 ## Lobby und Zuschauer
 
