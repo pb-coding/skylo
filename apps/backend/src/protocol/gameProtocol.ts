@@ -6,7 +6,20 @@ export type Card = -2 | -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 1
 export type Difficulty = "easy" | "medium" | "hard";
 export type ParticipantRole = "player" | "spectator";
 export type GamePhase = "reveal two cards" | "pick up card" | "place card" | "reveal card" | "new round" | "game ended";
-export type BotConfig = { strategyId: string; difficulty: Difficulty; version?: string };
+export type BotConfig = { strategyId: string; difficulty?: Difficulty; profile?: string; version?: string };
+export type BotCatalogEntry = {
+  id: string; version: string; name: string; available: boolean; unavailableReason?: string;
+  difficulties: Difficulty[]; profiles: { id: string; name: string }[];
+};
+export type PublicRules = { ruleVersion: string; pointLimit: number; maxRounds: number; maxActions: number };
+export type DecisionSource = "strategy" | "model" | "automatic" | "fallback";
+export type DecisionFailure = "timeout" | "aborted" | "rate-limit" | "authentication" | "transport" | "provider" | "invalid-response" | "illegal-action" | "budget-exhausted" | "circuit-open" | "strategy-error";
+export type DecisionDiagnostics = {
+  strategyId: string; strategyVersion: string; source: DecisionSource; failure?: DecisionFailure;
+  promptVersion?: string; requestedModel?: string; model?: string; sdkVersion?: string;
+  requestId?: string; responseMs?: number; inputTokens?: number; outputTokens?: number;
+  contextHash?: string; selectedCandidate?: string; confidence?: number; probabilities?: Record<string, number>;
+};
 export type PlayerSpec = { id: string; name: string; kind: "human" | "bot"; botConfig?: BotConfig };
 export type GameAction =
   | { type: "reveal"; slotId: string }
@@ -44,8 +57,8 @@ export type CoreView = {
   discardPile: Card[];
   endReason: EndReason | null;
 };
-export type PlaybackState = { delayMs: number; paused: boolean; stepping: "action" | "turn" | null; thinking: boolean };
-export type DecisionSummary = { playerId: string; explanation: string; decisionMs: number; fallback: boolean };
+export type PlaybackState = { delayMs: number; paused: boolean; stepping: "action" | "turn" | null; thinking: boolean; thinkingPlayerId?: string | null; thinkingStrategyId?: string | null };
+export type DecisionSummary = { playerId: string; explanation: string; decisionMs: number; fallback: boolean; diagnostics?: DecisionDiagnostics };
 export type GameView = CoreView & {
   ownPlayerId: string | null;
   role: ParticipantRole;
@@ -73,5 +86,6 @@ export type SessionView = {
   running: boolean;
   canControl: boolean;
   hasExport: boolean;
+  botCatalog: BotCatalogEntry[];
 };
 export type ResponseCode = "success" | "error:invalid" | "error:full" | "error:running" | "error:joined" | "error:membership" | "error:host" | "error:players" | "error:stale" | "error:rate-limited" | "error:finished";

@@ -78,6 +78,11 @@ jobs:
           SSH_PORT: ${{ secrets.HETZNER_SSH_PORT }}
           SSH_USER: ${{ secrets.HETZNER_SSH_USER }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          TYPESAFE_MODEL: ${{ vars.TYPESAFE_MODEL || 'jev-1.13.0' }}
+          TYPESAFE_MAX_REQUESTS: ${{ vars.TYPESAFE_MAX_REQUESTS || '0' }}
+          TYPESAFE_MAX_REQUESTS_PER_MATCH: ${{ vars.TYPESAFE_MAX_REQUESTS_PER_MATCH || '10' }}
+          TYPESAFE_DECISION_TIMEOUT_MS: ${{ vars.TYPESAFE_DECISION_TIMEOUT_MS || '15000' }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -86,7 +91,16 @@ jobs:
           else
             args="prod $IMAGE_TAG"
           fi
-          printf '%s' "$GHCR_TOKEN" | ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "GHCR_USER='${{ github.actor }}' bash /home/pb/apps/skylo/deploy/ci-deploy.sh up $args"
+          # Explicitly authorized manual trial for PR #6 only; never enables production.
+          # User-authorized increase to 10,000 requests; prior EUR 2 trial cap is superseded.
+          # Output tokens are free. The persistent counter is shared by all games in this preview.
+          if [[ "$PR_NUMBER" == "6" ]]; then
+            export TYPESAFE_MODEL=jev-1.13.0
+            export TYPESAFE_MAX_REQUESTS=10000
+            export TYPESAFE_MAX_REQUESTS_PER_MATCH=10000
+          fi
+          python3 -c 'import json, os; print(json.dumps({"registryToken": os.environ["GHCR_TOKEN"], "typesafe": {key: os.environ[key] for key in ["TYPESAFE_API_KEY", "TYPESAFE_MODEL", "TYPESAFE_MAX_REQUESTS", "TYPESAFE_MAX_REQUESTS_PER_MATCH", "TYPESAFE_DECISION_TIMEOUT_MS"]}}))' |
+            ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "GHCR_USER='${{ github.actor }}' bash /home/pb/apps/skylo/deploy/ci-deploy.sh up $args"
       - name: Preview URL
         if: github.event_name == 'pull_request'
         env:

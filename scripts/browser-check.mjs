@@ -325,6 +325,44 @@ try {
   await click(human, 'Session verlassen');
   checked('Human against bot uses same action path', 'Two start cards and four additional human actions completed through real UI');
 
+  if (process.env.SKYLO_CHECK_JEV === '1') {
+    const jevSession = `browser-jev-${Date.now()}`;
+    await join(human, jevSession, 'spectator', 'Jev-Gastgeber');
+    for (let count = 1; count <= 2; count++) {
+      await click(human, 'Bot hinzufügen');
+      await until(async () => (await state(human)).session.players.length === count, 'Jev lobby seats missing');
+    }
+    await input(human, 'select[aria-label="Strategie für Bot 1"]', 'typesafe-jev-choice');
+    await until(async () => (await state(human)).session.players[0].botConfig.profile === 'choice', 'Jev profile missing');
+    assert.equal((await state(human)).session.players[0].botConfig.difficulty, undefined);
+    await human.screenshot('07-jev-lobby.png');
+    await click(human, 'Partie starten');
+    await until(async () => (await state(human)).game?.playback.thinkingStrategyId === 'typesafe-jev-choice', 'Jev thinking missing');
+    await click(human, 'Pause');
+    await until(async () => (await state(human)).game.playback.paused, 'Jev pause failed');
+    await click(human, 'Maximales Tempo');
+    await until(async () => !(await state(human)).game.playback.thinking, 'Jev response did not complete while paused');
+    assert.equal((await state(human)).game.revision, 0);
+    await click(human, 'Nächste Aktion');
+    await until(async () => (await state(human)).game.lastDecision?.diagnostics?.source === 'model', 'Jev model action missing');
+    assert.equal((await state(human)).game.revision, 1);
+    await human.screenshot('08-jev-model-decision.png');
+    await click(human, 'Nächste Aktion');
+    await until(async () => (await state(human)).game.lastDecision?.fallback === true, 'Jev fallback missing');
+    assert.equal((await state(human)).game.lastDecision.diagnostics.failure, 'rate-limit');
+    assert.equal(await human.evaluate(() => document.querySelector('.players-list').textContent.includes('Ersatzentscheidung')), true);
+    await human.screenshot('09-jev-visible-fallback.png');
+    await click(human, 'Partie beenden');
+    await until(async () => (await state(human)).session.hasExport, 'Jev export missing');
+    const exported = await ack(human, 'export-match', { sessionId: jevSession });
+    assert.equal(exported.code, 'success');
+    assert.equal(exported.record.actions[0].diagnostics.source, 'model');
+    assert.equal(exported.record.actions[1].diagnostics.source, 'fallback');
+    await writeFile(path.join(artifacts, 'jev-fixture-record.json'), JSON.stringify(exported.record, null, 2));
+    await click(human, 'Session verlassen');
+    checked('Jev Choice browser fixture', 'Catalog/profile, in-flight pause, retained model decision, visible rate-limit fallback and recorded source checked without real API calls');
+  }
+
   const naturalSession = `browser-natural-${Date.now()}`;
   await join(human, naturalSession, 'spectator', 'Browser-Gastgeber');
   for (let count = 1; count <= 2; count++) {

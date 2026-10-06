@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 # Run on the Hetzner host from /home/pb/apps/skylo.
 cd "$(dirname "$0")/.."
@@ -32,6 +33,7 @@ if [[ "$action" == down ]]; then
     docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml down --remove-orphans
     rm -f "$env_file"
   fi
+  docker volume rm "${stack}_typesafe-usage" >/dev/null 2>&1 || true
   exit 0
 fi
 
@@ -44,7 +46,15 @@ old_env=""
 if [[ -f "$env_file" ]]; then
   old_env="$(cat "$env_file")"
 fi
+touch "$env_file"
+chmod 600 "$env_file"
 printf 'STACK_NAME=%s\nHOSTNAME=%s\nIMAGE_TAG=%s\n' "$stack" "$host" "$tag" > "$env_file"
+if [[ -n "${TYPESAFE_SETTINGS_FILE:-}" ]]; then
+  cat "$TYPESAFE_SETTINGS_FILE" >> "$env_file"
+elif [[ -n "$old_env" ]]; then
+  # Manual image updates/rollbacks retain the configured key and usage limits.
+  printf '%s\n' "$old_env" | awk '/^TYPESAFE_/' >> "$env_file"
+fi
 if ! docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml up -d --wait --wait-timeout 120 --remove-orphans; then
   if [[ -n "$old_env" ]]; then
     printf '%s\n' "$old_env" > "$env_file"

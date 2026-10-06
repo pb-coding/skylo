@@ -21,6 +21,14 @@ services:
       ENVIRONMENT: ${STACK_NAME}
       PORT: 3001
       FRONTEND_URL: https://${HOSTNAME}
+      TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
+      TYPESAFE_MODEL: ${TYPESAFE_MODEL:-jev-1.13.0}
+      TYPESAFE_MAX_REQUESTS: ${TYPESAFE_MAX_REQUESTS:-0}
+      TYPESAFE_MAX_REQUESTS_PER_MATCH: ${TYPESAFE_MAX_REQUESTS_PER_MATCH:-10}
+      TYPESAFE_DECISION_TIMEOUT_MS: ${TYPESAFE_DECISION_TIMEOUT_MS:-15000}
+      TYPESAFE_USAGE_FILE: /var/lib/skylo/typesafe-usage.json
+    volumes:
+      - typesafe-usage:/var/lib/skylo
     networks:
       - proxy
     labels:
@@ -36,3 +44,6 @@ networks:
   proxy:
     external: true
     name: proxy
+
+volumes:
+  typesafe-usage:

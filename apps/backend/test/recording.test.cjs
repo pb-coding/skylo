@@ -38,7 +38,7 @@ function recordedGame(config = configuration()) {
 
 test('completed recordings reproduce every accepted action, events, hidden state and final scores', () => {
   const { core, record } = recordedGame();
-  assert.equal(record.schemaVersion, 1);
+  assert.equal(record.schemaVersion, 2);
   assert.equal(record.config.seed, 'reproducible-recording');
   assert.equal(record.completion.endReason, core.view().endReason);
   assert.ok(record.actions.length > 10);

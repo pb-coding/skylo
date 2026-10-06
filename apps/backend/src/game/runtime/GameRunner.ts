@@ -1,8 +1,9 @@
 import { GameCore, CoreConfig } from "../core";
 import { createRandom } from "../core/random";
-import { BotStrategy, createBot, validateBotConfig } from "../bots";
+import { BotDecision, BotDecisionError, BotStrategy, createBot, validateBotConfig } from "../bots";
+import { validDecisionDiagnostics } from "../recording/decisionDiagnostics";
 import { MatchRecorder } from "../recording/recorder";
-import { ActionRequest, CoreView, DecisionSummary, EndReason, GameAction, GameEvent, GameView, ParticipantRole, PlaybackCommand, PlaybackState, PlayerObservation, ResponseCode } from "../../protocol/gameProtocol";
+import { ActionRequest, DecisionDiagnostics, DecisionSummary, EndReason, GameAction, GameEvent, GameView, ParticipantRole, PlaybackCommand, PlaybackState, PlayerObservation, ResponseCode, RULE_VERSION } from "../../protocol/gameProtocol";
 
 export interface RunnerClock {
   now(): number;
@@ -14,7 +15,7 @@ const realClock: RunnerClock = {
   setTimeout: (callback, delay) => setTimeout(callback, delay),
   clearTimeout: handle => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
-type Decision = { action: GameAction; explanation?: string };
+type Decision = BotDecision;
 type Pending = {
   playerId: string;
   revision: number;
@@ -45,6 +46,7 @@ export class GameRunner {
   private readonly initialization = new Map<string, Promise<void>>();
   private readonly botEvents = new Map<string, GameEvent[]>();
   private readonly requests = new Map<string, string>();
+  private readonly remoteUsage = { requests: 0 };
   private pending: Pending | null = null;
   private timer: unknown;
   private publicationTimer: unknown;
@@ -170,6 +172,8 @@ export class GameRunner {
     pending?.controller.abort();
     pending?.cancel?.();
     this.playback.thinking = false;
+    this.playback.thinkingPlayerId = null;
+    this.playback.thinkingStrategyId = null;
   }
   private emit(force = false) {
     if (!force && this.clock.now() - this.lastPublication < 75 && this.playback.delayMs === 0 && !this.playback.paused) {
@@ -185,14 +189,14 @@ export class GameRunner {
     this.options.onUpdate?.(this);
   }
 
-  private accept(playerId: string, action: GameAction, decisionMs: number, explanation?: string, fallback = false, force = false) {
+  private accept(playerId: string, action: GameAction, decisionMs: number, explanation?: string, fallback = false, force = false, diagnostics?: DecisionDiagnostics) {
     const result = this.core.apply(playerId, action);
     if (!result.accepted) return false;
     this.cancelPending();
     const view = this.core.view();
     this.recorder.recordAction({ playerId, action, revision: view.revision, round: view.round, turn: view.turn,
-      decisionMs, explanation, fallback, events: result.events, fingerprint: this.core.fingerprint() });
-    if (this.bots.has(playerId)) this.lastDecision = { playerId, explanation: explanation ?? "Erlaubte Aktion gewählt.", decisionMs, fallback };
+      decisionMs, explanation, fallback, diagnostics, events: result.events, fingerprint: this.core.fingerprint() });
+    if (this.bots.has(playerId)) this.lastDecision = { playerId, explanation: explanation ?? "Erlaubte Aktion gewählt.", decisionMs, fallback, diagnostics };
     for (const queue of this.botEvents.values()) {
       for (const event of result.events) queue.push(publicEvent(event));
       if (queue.length > 1000) queue.splice(0, queue.length - 1000);
@@ -230,6 +234,8 @@ export class GameRunner {
         controller: new AbortController(), ready: null, decisionMs: 0, fallback: false };
       this.pending = pending;
       this.playback.thinking = true;
+      this.playback.thinkingPlayerId = playerId;
+      this.playback.thinkingStrategyId = this.bots.get(playerId)!.id;
       this.emit();
       void this.decide(pending);
     } else if (this.pending.ready) this.schedule(this.pending);
@@ -241,7 +247,10 @@ export class GameRunner {
     const legalActions = observation.legalActions;
     const seat = this.config.players.findIndex(player => player.id === pending.playerId);
     const context = { signal: pending.controller.signal, random: createRandom(`${this.config.seed}:bot:seat${seat}:${pending.revision}`),
-      budget: { maxMs: this.options.decisionTimeoutMs ?? 1000, maxIterations: 1000 } };
+      budget: { maxMs: this.options.decisionTimeoutMs ?? strategy.decisionTimeoutMs ?? 1000, maxIterations: 1000 },
+      publicRules: Object.freeze({ ruleVersion: RULE_VERSION, pointLimit: this.config.pointLimit ?? 100,
+        maxRounds: this.config.maxRounds ?? 100, maxActions: this.config.maxActions ?? 100_000 }),
+      remoteUsage: this.remoteUsage };
     let deadline: unknown;
     try {
       pending.ready = await new Promise<Decision>((resolve, reject) => {
@@ -249,7 +258,9 @@ export class GameRunner {
           if (deadline !== undefined) this.clock.clearTimeout(deadline);
           reject(new Error("Decision cancelled"));
         };
-        deadline = this.clock.setTimeout(() => { pending.controller.abort(); reject(new Error("Decision timed out")); }, context.budget.maxMs);
+        deadline = this.clock.setTimeout(() => {
+          const error = new BotDecisionError("timeout"); pending.controller.abort(error); reject(error);
+        }, context.budget.maxMs);
         void Promise.resolve().then(async () => {
           let initialization = this.initialization.get(pending.playerId);
           if (!initialization) {
@@ -267,17 +278,24 @@ export class GameRunner {
         }).then(resolve, reject);
       });
       const legalAction = pending.ready && legalActions.find(action => sameAction(action, pending.ready!.action));
-      if (!legalAction) throw new Error("Illegal bot action");
-      pending.ready = { action: legalAction, explanation: typeof pending.ready!.explanation === "string" ? pending.ready!.explanation.slice(0, 500) : undefined };
-    } catch {
+      if (!legalAction) throw new BotDecisionError("illegal-action");
+      if (pending.ready!.diagnostics !== undefined && !validDecisionDiagnostics(pending.ready!.diagnostics)) throw new BotDecisionError("invalid-response");
+      const diagnostics = pending.ready!.diagnostics ? JSON.parse(JSON.stringify(pending.ready!.diagnostics)) as DecisionDiagnostics
+        : { strategyId: strategy.id, strategyVersion: strategy.version, source: "strategy" as const };
+      pending.ready = { action: legalAction, explanation: typeof pending.ready!.explanation === "string" ? pending.ready!.explanation.slice(0, 500) : undefined, diagnostics };
+    } catch (error) {
       if (this.pending !== pending || this.ended) return;
       pending.fallback = true;
+      const diagnostics: DecisionDiagnostics = error instanceof BotDecisionError && error.diagnostics && validDecisionDiagnostics(error.diagnostics)
+        ? error.diagnostics : { ...(strategy.decisionMetadata ?? {}), strategyId: strategy.id, strategyVersion: strategy.version,
+          source: "fallback", failure: error instanceof BotDecisionError ? error.reason : "strategy-error" };
       const fallback = createBot({ strategyId: "rules", difficulty: "medium" });
       try {
         pending.ready = await fallback.decide(observation, legalActions, { ...context, signal: new AbortController().signal });
-        pending.ready.explanation = `Ersatzaktion: ${pending.ready.explanation ?? "Regel-KI"}`;
+        pending.ready.explanation = `Ersatzentscheidung (${failureLabel(diagnostics.failure)}): ${pending.ready.explanation ?? "Regel-KI"}`;
       } catch { pending.ready = { action: legalActions[0], explanation: "Erlaubte Ersatzaktion" }; }
       finally { void Promise.resolve(fallback.dispose?.()).catch(() => undefined); }
+      pending.ready!.diagnostics = diagnostics;
     } finally {
       if (deadline !== undefined) this.clock.clearTimeout(deadline);
       pending.cancel = undefined;
@@ -297,7 +315,7 @@ export class GameRunner {
     this.timer = this.clock.setTimeout(() => {
       this.timer = undefined;
       if (this.pending !== pending || pending.revision !== this.core.state.revision || this.ended || this.playback.paused && !this.playback.stepping) return;
-      const accepted = this.accept(pending.playerId, pending.ready!.action, pending.decisionMs, pending.ready!.explanation, pending.fallback);
+      const accepted = this.accept(pending.playerId, pending.ready!.action, pending.decisionMs, pending.ready!.explanation, pending.fallback, false, pending.ready!.diagnostics);
       if (!accepted) this.stop("aborted");
       else this.advance();
     }, remaining);
@@ -331,6 +349,17 @@ export class GameRunner {
 function sameAction(left: GameAction, right: GameAction) {
   if (!right || typeof right !== "object" || left.type !== right.type) return false;
   return "slotId" in left ? "slotId" in right && left.slotId === right.slotId : !("slotId" in right);
+}
+function failureLabel(failure: DecisionDiagnostics["failure"]): string {
+  switch (failure) {
+    case "timeout": return "Antwortzeit überschritten";
+    case "budget-exhausted": return "Anfragebudget ausgeschöpft";
+    case "rate-limit": return "Anfragelimit des Anbieters";
+    case "authentication": return "Zugang nicht verfügbar";
+    case "circuit-open": return "Anbieter vorübergehend pausiert";
+    case "invalid-response": case "illegal-action": return "Ungültige Antwort";
+    default: return "Entscheidung nicht verfügbar";
+  }
 }
 const publicEventTypes = new Set(["action", "round-started", "card-revealed", "stack-refilled", "card-drawn", "discard-taken", "card-discarded", "card-placed", "column-removed", "round-closed", "turn-started", "round-ended", "game-ended"]);
 function publicEvent(event: GameEvent): GameEvent {

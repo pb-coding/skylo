@@ -3,4 +3,5 @@ dist
 .git
 .env
 .env.*
+.cache
 !.env.example
