@@ -82,7 +82,8 @@ test('verified ML artifact registers as an independent strategy and runs through
               const record=runner.exportRecord();
               assert.ok(record.actions.some(a=>a.playerId==='p0'&&a.diagnostics?.source==='model'));
               assert.ok(record.actions.every(a=>!a.fallback));
-              assert.ok(verifyRecord(record));resolve();
+              const replay=verifyRecord(record);
+              assert.equal(replay.valid,true,replay.error);resolve();
             }catch(error){reject(error)}
           }});
         runner.start();

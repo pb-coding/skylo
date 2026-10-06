@@ -60,7 +60,8 @@ async function runnerSmoke() {
           const record = runner.exportRecord();
           assert.ok(record.actions.some(action => action.diagnostics?.source === 'model'));
           assert.ok(record.actions.every(action => !action.fallback), 'No fallback decisions');
-          assert.ok(verifyRecord(record));
+          const replay = verifyRecord(record);
+          assert.equal(replay.valid, true, replay.error);
           resolve();
         } catch (error) { reject(error); }
       } });
