@@ -106,11 +106,30 @@ die SHA-256-Inventarliste liegt im Modellverzeichnis als `SHA256SUMS.txt`.
 Im Backend aktiviert `SKYLO_ML_MANIFEST` die Strategie `Skylo · ML (2 Spieler)`
 mit dem Profil `Zweispieler-Modell`. Inferenz läuft auf der CPU und benötigt weder
 Python noch CUDA. Der aktuelle Stand unterstützt ausschließlich zwei Spieler.
-Ein Hetzner-Deployment und dortige Laufzeitmessungen wurden nicht ausgeführt.
+Der lokale Abschlusstest wurde vor dem Hetzner-Deployment durchgeführt.
+Aktivierung, Modell-Mount und Rückweg sind in [ML-Deployment](../docs/ml-deployment.md) beschrieben.
+
+## Hetzner-Laufzeitprüfung am 2026-10-06
+
+Das unveränderte Modell wurde im Produktions-Container unter Linux x64 / Node
+24.21.0 auf dem vorhandenen AMD-EPYC-Genoa-Server geprüft. Alle 20 vollständigen
+Testpartien stimmten mit Windows bei Seeds, Sitzpositionen, Endständen,
+Aktionszahlen und finalen Fingerprints exakt überein. CPU-Inferenz: Median
+0,316 ms, p95 0,849 ms, Maximum einschließlich Kaltstart 72,652 ms.
+Der echte Spiel-Runner bestand zusätzlich die Replay-Prüfung ohne Fallback.
+
+Die öffentliche PR-Vorschau absolvierte über Socket.IO eine natürliche Partie
+mit 7 Runden, 549 Aktionen und 272 Modellentscheidungen: kein Fallback,
+vollständig gültiger exportierter Replay. Ein Start mit drei Spielern wurde
+serverseitig abgelehnt. Die Browseroberfläche zeigt das eigene ML-Profil,
+deaktiviert bei drei Spielern den Start und erlaubt nach Entfernen des dritten
+Spielers wieder eine Zweispielerpartie. Diese Prüfungen bestätigen die
+Deployment-Kompatibilität; sie ersetzen nicht den separaten 6000-Partien-Test.
 
 ## Prüfungen und Grenzen
 
-- Backend: 98/98 Tests mit echtem ONNX-Modell bestanden.
+- Backend: 99/99 Tests mit echtem ONNX-Modell bestanden, einschließlich
+  Spielerzahlgrenze in Lobby, Socket-Handler und Spiel-Runner.
 - Eingefrorener Release-Stand: 6/6 ML-Tests einschließlich Spiel-Runner/Replays
   und Entscheidungen ohne Fallback bestanden.
 - Python-Pipeline: 6 Tests für Maskierung, Gradienten, getrennten Kritiker,
@@ -118,8 +137,10 @@ Ein Hetzner-Deployment und dortige Laufzeitmessungen wurden nicht ausgeführt.
 - Statistische Freigabe: 3 Gegenbeispieltests bestanden; knappe Quoten,
   Unentschieden, manipulierte Ergebnisse, Sicherheitslimits und andere Modellbytes
   können keine falsche Freigabe erzeugen.
-- Frontend: TypeScript/Vite-Build und ESLint bestanden; einziges UI-Update ist
-  die passende ML-Bezeichnung in der Spieleranzeige.
+- Frontend: TypeScript/Vite-Build und ESLint bestanden. ML-Bezeichnung,
+  Spielerzahlgrenze und passende Anzeige der Modellerklärung sind integriert.
+- Deployment: Konfigurationserhalt bei CI/manuellen Updates sowie Rückweg nach
+  fehlgeschlagener Inferenzprüfung oder fehlgeschlagenem Containerwechsel getestet.
 - Vertragscheck und `git diff --check` bestanden. Der Vertragscheck wurde für
   Windows-Zeilenenden korrigiert: Frontend- und Backend-Protokoll waren inhaltlich
   bereits identisch; CRLF/LF wird jetzt vor dem Vergleich vereinheitlicht.

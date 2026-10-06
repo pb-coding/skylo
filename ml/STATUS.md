@@ -218,3 +218,14 @@ COMPLETE 2026-10-06 23:11 local:
   included. All dedicated training/test processes finished. No push or Hetzner
   deployment performed. Working tree changes stay local and uncommitted.
 - Final git diff --check and baseline engine/protocol/reference-diff checks pass.
+
+HETZNER INTEGRATION 2026-10-06 (subsequent authorized deployment):
+- Frozen ONNX model uploaded separately from public Git; checksum confirmed.
+- Linux CPU smoke: 20/20 full games exactly match Windows outcomes/fingerprints.
+  Median0.316ms,p950.849ms; runner replay valid, zero fallback.
+- PR7 preview: full live Socket.IO match,7rounds,549actions,272model decisions,
+  zero fallback, exported replay valid; three-player start blocked.
+- UI model/profile selection and player-count guard verified in browser.
+- Deployment retains host-managed model activation and TypeSafe settings,
+  mounts artifacts read-only and runs candidate inference/replay preflight.
+  Isolated rollback/configuration regression passes. No further training started.
