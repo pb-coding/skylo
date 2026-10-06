@@ -24,6 +24,12 @@ export function registerBotStrategy(input: BotRegistration | string, version?: s
       registration.name.trim().length === 0 || registration.name.length > 120) {
     throw new Error("Invalid bot strategy registration");
   }
+  if (registration.supportedPlayerCounts) {
+    if (!registration.supportedPlayerCounts.length || registration.supportedPlayerCounts.some(count => !Number.isInteger(count) || count < 2 || count > 8)) {
+      throw new Error("Invalid supported player counts");
+    }
+    registration.supportedPlayerCounts = Object.freeze([...registration.supportedPlayerCounts]);
+  }
   const versions = registry.get(registration.id) ?? new Map<string, BotRegistration>();
   if (versions.has(registration.version)) throw new Error("Bot strategy version already registered");
   versions.set(registration.version, Object.freeze(registration));
@@ -79,10 +85,19 @@ export function strategyInfo(): Array<{ id: string; version: string; name: strin
   return Array.from(registry.values()).flatMap((versions) => Array.from(versions.values(), ({ id, version, name }) => ({ id, version, name })));
 }
 
-export function botCatalog(): BotCatalogEntry[] {
+export function botPlayerCountError(config: BotConfig, playerCount: number): string | null {
+  const registration = resolveStrategy(config.strategyId, config.version);
+  return registration?.supportedPlayerCounts && !registration.supportedPlayerCounts.includes(playerCount)
+    ? `${registration.name} unterstützt ${registration.supportedPlayerCounts.join(" oder ")} Spieler. Bitte passe die Spielerzahl an oder wähle eine andere Strategie.`
+    : null;
+}
+
+export function botCatalog(playerCount?: number): BotCatalogEntry[] {
   return Array.from(registry.values(), versions => Array.from(versions.values())[versions.size - 1]).map(registration => ({
     id: registration.id, version: registration.version, name: registration.name,
-    ...(registration.availability?.() ?? { available: true }),
+    ...(playerCount !== undefined && playerCount >= 2 && botPlayerCountError({ strategyId: registration.id, version: registration.version }, playerCount)
+      ? { available: false, unavailableReason: botPlayerCountError({ strategyId: registration.id, version: registration.version }, playerCount)! }
+      : registration.availability?.() ?? { available: true }),
     difficulties: registration.profiles?.length ? [] : [...(registration.difficulties ?? difficulties)],
     profiles: registration.profiles?.map(profile => ({ ...profile })) ?? [],
   }));

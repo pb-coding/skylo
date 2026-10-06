@@ -1,6 +1,6 @@
 import { GameCore, CoreConfig } from "../core";
 import { createRandom } from "../core/random";
-import { BotDecision, BotDecisionError, BotStrategy, createBot, validateBotConfig } from "../bots";
+import { BotDecision, BotDecisionError, BotStrategy, botPlayerCountError, createBot, validateBotConfig } from "../bots";
 import { validDecisionDiagnostics } from "../recording/decisionDiagnostics";
 import { MatchRecorder } from "../recording/recorder";
 import { ActionRequest, DecisionDiagnostics, DecisionSummary, EndReason, GameAction, GameEvent, GameView, ParticipantRole, PlaybackCommand, PlaybackState, PlayerObservation, ResponseCode, RULE_VERSION } from "../../protocol/gameProtocol";
@@ -64,6 +64,8 @@ export class GameRunner {
       if (player.kind !== "bot" || options.strategyFactory) continue;
       const validated = validateBotConfig(player.botConfig);
       if (!validated) throw new Error("Invalid bot configuration");
+      const error = botPlayerCountError(validated, this.config.players.length);
+      if (error) throw new Error(error);
       player.botConfig = validated;
     }
     this.core = new GameCore(this.config);

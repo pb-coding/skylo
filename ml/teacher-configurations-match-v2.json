@@ -1,0 +1,6 @@
+[
+  {"patient":true,"matchAware":true,"pairs":2,"information":0.4,"endRisk":10,"closingPatience":64,"informationPatience":12,"matchBonus":10},
+  {"patient":true,"matchAware":true,"pairs":2,"information":0.4,"endRisk":20,"closingPatience":64,"informationPatience":12,"matchBonus":20},
+  {"patient":true,"matchAware":true,"pairs":3,"information":0.4,"endRisk":10,"closingPatience":64,"informationPatience":12,"matchBonus":10},
+  {"patient":true,"matchAware":true,"pairs":2,"information":0.4,"endRisk":10,"closingPatience":128,"informationPatience":24,"matchBonus":10}
+]

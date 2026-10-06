@@ -36,6 +36,10 @@ The current app uses WebRTC peer connections for voice chat. STUN/TURN is not co
 
 ## TypeSafe Jev
 
+The standalone local ML bot has a separate read-only model mount and no API
+budget. See [ML deployment](ml-deployment.md) for activation, runtime verification
+and rollback. Host-managed ML activation survives later CI deployments.
+
 The environment secret `TYPESAFE_API_KEY` is forwarded to the backend only via SSH stdin. GitHub environment variables configure `TYPESAFE_MODEL`, `TYPESAFE_MAX_REQUESTS`, `TYPESAFE_MAX_REQUESTS_PER_MATCH`, and `TYPESAFE_DECISION_TIMEOUT_MS`. Total usage defaults to **0**: a key does not authorize paid preview or production games. Codex smoke-test authorization does not increase deployment budgets. See [Jev operation and validation](jev-bot-implementation.md).
 
 Stack environment files now contain the backend secret and are created with private permissions. Avoid printing them or rendered Compose configurations. The persistent `typesafe-usage` volume preserves the request count across updates and manual rollbacks; manual image updates also preserve the existing TypeSafe settings. Removing a preview removes its usage volume. Each stack has a separate request cap; account-wide limits across independently authorized stacks remain an operator responsibility.

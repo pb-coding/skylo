@@ -26,6 +26,8 @@ export function SessionManager({ isConnected, sessionId, state, onJoined, onLeft
   const disabled = !isConnected || pending;
   const canConfigure = !!state?.canControl && !state.running;
   const allBots = !!state?.players.length && state.players.every((player) => player.kind === "bot");
+  const unavailableBot = state?.players.some(player => player.botConfig &&
+    state.botCatalog.find(strategy => strategy.id === player.botConfig?.strategyId)?.available === false);
   const spectators = state?.participants.filter((participant) => participant.role === "spectator") || [];
 
   async function command(event: string, payload: unknown, onSuccess?: () => void) {
@@ -129,7 +131,7 @@ export function SessionManager({ isConnected, sessionId, state, onJoined, onLeft
               <div className="lobby-actions">
                 <Button variant="secondary" disabled={disabled || state.players.length >= state.maxPlayers}
                   onClick={() => void command("add-bot", { sessionId, config: { strategyId: "rules", difficulty: "medium" } })}>Bot hinzufügen</Button>
-                <Button disabled={disabled || state.players.length < 2}
+                <Button disabled={disabled || state.players.length < 2 || unavailableBot}
                   onClick={() => void command("new-game", { sessionId, ...(allBots && seed.trim() ? { seed: seed.trim() } : {}) })}>Partie starten <ArrowRight size={20} /></Button>
               </div>
               {allBots && <div className="lobby-seed">

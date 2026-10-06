@@ -27,6 +27,7 @@
     "date-fns": "^2.30.0",
     "dotenv": "^16.6.1",
     "express": "^4.22.3",
+    "onnxruntime-node": "^1.30.0",
     "socket.io": "^4.8.4",
     "uuid": "^11.1.1"
   },

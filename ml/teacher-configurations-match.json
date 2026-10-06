@@ -1,0 +1,32 @@
+[
+  {
+    "informationPatience": 12,
+    "pairs": 2,
+    "endRisk": 10,
+    "patient": true,
+    "information": 0.4,
+    "matchAware": true,
+    "matchBonus": 10,
+    "closingPatience": 64
+  },
+  {
+    "informationPatience": 12,
+    "pairs": 2,
+    "endRisk": 10,
+    "patient": true,
+    "information": 0.4,
+    "matchAware": true,
+    "matchBonus": 30,
+    "closingPatience": 64
+  },
+  {
+    "informationPatience": 12,
+    "pairs": 2,
+    "endRisk": 10,
+    "patient": true,
+    "information": 0.4,
+    "matchAware": true,
+    "matchBonus": 100,
+    "closingPatience": 64
+  }
+]

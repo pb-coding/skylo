@@ -1,0 +1,58 @@
+[
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 1,
+    "information": 0.4,
+    "horizon": 1
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 5,
+    "information": 0.4,
+    "horizon": 1
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 1,
+    "information": 0.4,
+    "horizon": 2
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 5,
+    "information": 0.4,
+    "horizon": 2
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 1,
+    "information": 0.4,
+    "horizon": 4
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 5,
+    "information": 0.4,
+    "horizon": 4
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 1,
+    "information": 0.4,
+    "horizon": 8
+  },
+  {
+    "futureWeight": 1,
+    "planner": true,
+    "endRisk": 5,
+    "information": 0.4,
+    "horizon": 8
+  }
+]

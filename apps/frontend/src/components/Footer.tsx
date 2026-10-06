@@ -126,6 +126,7 @@ export function Footer({ isConnected, sessionId, state, gameData, focusPlayerId,
                 ? player.botConfig?.strategyId === "random" ? "Zufallsbot"
                   : player.botConfig?.strategyId === "rules" ? `Regel-KI · ${difficulties[player.botConfig.difficulty ?? "medium"]}`
                     : player.botConfig?.strategyId === "typesafe-jev-choice" ? "Jev · TypeSafe"
+                    : player.botConfig?.strategyId === "ml" ? "Skylo · ML"
                     : `${player.botConfig?.strategyId ?? "Bot"}${player.botConfig ? ` · ${difficulties[player.botConfig.difficulty ?? "medium"]}` : ""}`
                 : "Spieler"}</p>
               <p className="player-score"><span>Runde:</span> {player.roundPoints}</p>

@@ -21,6 +21,7 @@ services:
       ENVIRONMENT: ${STACK_NAME}
       PORT: 3001
       FRONTEND_URL: https://${HOSTNAME}
+      SKYLO_ML_MANIFEST: ${SKYLO_ML_MANIFEST:-}
       TYPESAFE_API_KEY: ${TYPESAFE_API_KEY:-}
       TYPESAFE_MODEL: ${TYPESAFE_MODEL:-jev-1.13.0}
       TYPESAFE_MAX_REQUESTS: ${TYPESAFE_MAX_REQUESTS:-0}
@@ -29,6 +30,10 @@ services:
       TYPESAFE_USAGE_FILE: /var/lib/skylo/typesafe-usage.json
     volumes:
       - typesafe-usage:/var/lib/skylo
+      - type: bind
+        source: ../models
+        target: /opt/skylo/models
+        read_only: true
     networks:
       - proxy
     labels:

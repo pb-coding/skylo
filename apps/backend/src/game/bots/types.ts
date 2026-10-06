@@ -32,6 +32,7 @@ export interface BotStrategy {
 export type BotFactory = (config: Readonly<BotConfig>) => BotStrategy;
 export type BotRegistration = { id: string; version: string; name: string; factory: BotFactory;
   difficulties?: BotCatalogEntry["difficulties"]; profiles?: BotCatalogEntry["profiles"];
+  supportedPlayerCounts?: readonly number[];
   availability?: () => { available: boolean; unavailableReason?: string };
 };
 
