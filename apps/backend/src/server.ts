@@ -29,9 +29,11 @@ import dotenv from "dotenv";
 import { acknowledge, isRecord, validDescription, validIceCandidate } from "./game/sessionValidation";
 import { sessionRoom } from "./game/sessionRoom";
 import { configureJev } from "./game/bots/configureJev";
+import { configureML } from "./game/ml/configureML";
 
 dotenv.config();
 configureJev();
+configureML();
 
 const FRONTEND_URL = process.env.FRONTEND_URL ?? "";
 export const httpServer = new Server(app);

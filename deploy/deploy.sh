@@ -26,7 +26,7 @@ else
   exit 2
 fi
 
-mkdir -p stacks
+mkdir -p stacks models
 env_file="stacks/${stack}.env"
 if [[ "$action" == down ]]; then
   if [[ -f "$env_file" ]]; then
@@ -55,7 +55,21 @@ elif [[ -n "$old_env" ]]; then
   # Manual image updates/rollbacks retain the configured key and usage limits.
   printf '%s\n' "$old_env" | awk '/^TYPESAFE_/' >> "$env_file"
 fi
-if ! docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml up -d --wait --wait-timeout 120 --remove-orphans; then
+if [[ -n "$old_env" ]]; then
+  # Model activation is host-managed and survives CI image updates and rollbacks.
+  printf '%s\n' "$old_env" | awk '/^SKYLO_ML_MANIFEST=/' >> "$env_file"
+fi
+update_stack() {
+  local model_manifest
+  model_manifest="$(awk '/^SKYLO_ML_MANIFEST=/ { sub(/^[^=]*=/, ""); print; exit }' "$env_file")"
+  if [[ -n "$model_manifest" ]]; then
+    # Test the candidate CPU runtime before replacing the running backend.
+    docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml run --rm --no-deps -T backend \
+      node scripts/ml-runtime-smoke.cjs "$model_manifest" 2 || return 1
+  fi
+  docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml up -d --wait --wait-timeout 120 --remove-orphans
+}
+if ! update_stack; then
   if [[ -n "$old_env" ]]; then
     printf '%s\n' "$old_env" > "$env_file"
     docker compose -p "$stack" --env-file "$env_file" -f deploy/compose.app.yml up -d --wait --wait-timeout 120 --remove-orphans || true

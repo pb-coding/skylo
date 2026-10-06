@@ -31,6 +31,14 @@ Games support 2–8 human or bot players and up to 32 spectators. Join as a play
 
 Completed matches have a downloadable JSON recording and an offline replay checker. See [bots, spectators and replay](docs/bots.md) for usage, timing semantics, limits and the strategy extension API. Human refresh/disconnect still ends participation and aborts the current match; spectator disconnect does not end bot play. Full player resume and durable storage are separate future work. The [phase 1 verification](docs/phase-1.md) and [improvement plan](docs/improvement-plan.md) describe the earlier baseline.
 
+An optional independently trained, two-player ML bot reuses the same engine and
+fair player view. Set `SKYLO_ML_MANIFEST` to a verified local ONNX manifest to add
+`Skylo · ML (2 Spieler)` to the bot catalogue. See [ML setup](ml/README.md),
+[training and evaluation results](ml/RESULTS.md), and the [test contract](ml/EXPERIMENT.md).
+Training runs separately from the backend; CPU inference needs no Python or CUDA.
+The [ML deployment guide](docs/ml-deployment.md) covers the read-only server
+artifact, persistent activation, preflight verification and rollback.
+
 With the local servers running, browser integration checks use an installed Chromium executable:
 
 ```sh

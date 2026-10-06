@@ -1,0 +1,15 @@
+[
+  {"pairs": 1.5, "information": 0.4, "endRisk": 1},
+  {"pairs": 2.0, "information": 0.0, "endRisk": 1},
+  {"pairs": 2.0, "information": 0.1, "endRisk": 1},
+  {"pairs": 2.0, "information": 0.8, "endRisk": 1},
+  {"pairs": 2.0, "information": 1.6, "endRisk": 1},
+  {"pairs": 2.0, "information": 3.0, "endRisk": 1},
+  {"pairs": 2.0, "information": 0.4, "endRisk": 0.5},
+  {"pairs": 2.0, "information": 0.4, "endRisk": 2.0},
+  {"pairs": 2.0, "information": 0.4, "endRisk": 4.0},
+  {"pairs": 2.5, "information": 0.4, "endRisk": 1},
+  {"pairs": 3.0, "information": 0.4, "endRisk": 1},
+  {"pairs": 2.0, "information": 0.1, "endRisk": 2.0},
+  {"pairs": 2.0, "information": 0.8, "endRisk": 2.0}
+]

@@ -1,0 +1,12 @@
+{
+  "checkedAtUtc": "2026-10-06T20:19:53.9797364Z",
+  "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+  "physicalCores": 6,
+  "logicalProcessors": 12,
+  "ramGiB": 31.93,
+  "freeRamGiB": 10.75,
+  "os": "Microsoft Windows 11 Pro",
+  "gpu": "NVIDIA GeForce RTX 3080, 10240 MiB, 616.92",
+  "runtimeRoot": "D:/AI/SkyloBot",
+  "nodeVersion": "v24.21.0"
+}

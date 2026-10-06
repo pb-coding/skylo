@@ -1,0 +1,92 @@
+[
+  {
+    "endRisk": 2,
+    "pairs": 2,
+    "information": -2
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2,
+    "information": -2
+  },
+  {
+    "endRisk": 10,
+    "pairs": 2,
+    "information": -2
+  },
+  {
+    "endRisk": 2,
+    "pairs": 2,
+    "information": -1
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2,
+    "information": -1
+  },
+  {
+    "endRisk": 10,
+    "pairs": 2,
+    "information": -1
+  },
+  {
+    "endRisk": 2,
+    "pairs": 2,
+    "information": -0.4
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2,
+    "information": -0.4
+  },
+  {
+    "endRisk": 10,
+    "pairs": 2,
+    "information": -0.4
+  },
+  {
+    "endRisk": 2,
+    "pairs": 2,
+    "information": 0
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2,
+    "information": 0
+  },
+  {
+    "endRisk": 10,
+    "pairs": 2,
+    "information": 0
+  },
+  {
+    "endRisk": 2,
+    "pairs": 2,
+    "information": 0.4
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2,
+    "information": 0.4
+  },
+  {
+    "endRisk": 10,
+    "pairs": 2,
+    "information": 0.4
+  },
+  {
+    "endRisk": 5,
+    "pairs": 1.5,
+    "information": -0.4
+  },
+  {
+    "endRisk": 5,
+    "pairs": 2.5,
+    "information": -0.4
+  },
+  {
+    "endRisk": 5,
+    "pairs": 3,
+    "information": -0.4
+  }
+]

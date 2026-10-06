@@ -1,0 +1,50 @@
+[
+  {
+    "information": 0.4,
+    "closingPatience": 16,
+    "informationPatience": 12,
+    "endRisk": 1,
+    "pairs": 2,
+    "patient": true
+  },
+  {
+    "information": 0.4,
+    "closingPatience": 64,
+    "informationPatience": 12,
+    "endRisk": 1,
+    "pairs": 2,
+    "patient": true
+  },
+  {
+    "information": 0.4,
+    "closingPatience": 16,
+    "informationPatience": 12,
+    "endRisk": 3,
+    "pairs": 2,
+    "patient": true
+  },
+  {
+    "information": 0.4,
+    "closingPatience": 64,
+    "informationPatience": 12,
+    "endRisk": 3,
+    "pairs": 2,
+    "patient": true
+  },
+  {
+    "information": 0.4,
+    "closingPatience": 16,
+    "informationPatience": 12,
+    "endRisk": 10,
+    "pairs": 2,
+    "patient": true
+  },
+  {
+    "information": 0.4,
+    "closingPatience": 64,
+    "informationPatience": 12,
+    "endRisk": 10,
+    "pairs": 2,
+    "patient": true
+  }
+]

@@ -124,6 +124,32 @@ test('human and bot seats share the eight-player cap, while spectators consume n
   assert.equal(await request(spectator, 'set-role', { sessionId: 'full-room', role: 'player' }), 'error:full');
 });
 
+test('two-player strategies remain visible but cannot start after a third player joins', async () => {
+  const { registerBotStrategy, RandomBot } = require('../src/game/bots');
+  const { GameRunner } = require('../src/game/runtime/GameRunner');
+  const unregister = registerBotStrategy({ id: 'two-player-test', version: '1', name: 'Zweispieler-Test',
+    supportedPlayerCounts: [2], factory: () => Object.assign(new RandomBot(), { id: 'two-player-test' }) });
+  try {
+    const host = await client(), guest = await client();
+    await join(host, 'two-player-only');
+    assert.equal(await bot(host, 'two-player-only', 'medium', 'two-player-test'), 'success');
+    await waitFor(() => host.sessionSnapshot.players.length === 2);
+    assert.equal(host.sessionSnapshot.botCatalog.find(entry => entry.id === 'two-player-test').available, true);
+    await join(guest, 'two-player-only');
+    await waitFor(() => host.sessionSnapshot.players.length === 3);
+    const entry = host.sessionSnapshot.botCatalog.find(entry => entry.id === 'two-player-test');
+    assert.equal(entry.available, false);
+    assert.match(entry.unavailableReason, /2 Spieler/);
+    assert.equal(await request(host, 'new-game', { sessionId: 'two-player-only' }), 'error:players');
+    assert.throws(() => new GameRunner({matchId:'invalid-count',sessionId:'test',seed:'test',
+      players:host.sessionSnapshot.players}), /2 Spieler/);
+    assert.equal(await request(guest, 'leave-session', 'two-player-only'), 'success');
+    await waitFor(() => host.sessionSnapshot.players.length === 2);
+    assert.equal(host.sessionSnapshot.botCatalog.find(entry => entry.id === 'two-player-test').available, true);
+    assert.equal(await request(host, 'new-game', { sessionId: 'two-player-only' }), 'success');
+  } finally { unregister(); }
+});
+
 test('host can change roles and bot configuration only in the lobby', async () => {
   const host = await client();
   const guest = await client();

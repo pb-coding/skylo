@@ -5,4 +5,10 @@ dist/
 !.env.example
 *.log
 stacks/
+models/
 .cache/
+__pycache__/
+ml/runs/
+ml/data/
+*.onnx
+*.pt

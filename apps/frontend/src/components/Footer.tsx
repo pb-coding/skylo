@@ -126,6 +126,7 @@ export function Footer({ isConnected, sessionId, state, gameData, focusPlayerId,
                 ? player.botConfig?.strategyId === "random" ? "Zufallsbot"
                   : player.botConfig?.strategyId === "rules" ? `Regel-KI · ${difficulties[player.botConfig.difficulty ?? "medium"]}`
                     : player.botConfig?.strategyId === "typesafe-jev-choice" ? "Jev · TypeSafe"
+                    : player.botConfig?.strategyId === "ml" ? "Skylo · ML"
                     : `${player.botConfig?.strategyId ?? "Bot"}${player.botConfig ? ` · ${difficulties[player.botConfig.difficulty ?? "medium"]}` : ""}`
                 : "Spieler"}</p>
               <p className="player-score"><span>Runde:</span> {player.roundPoints}</p>
@@ -192,7 +193,7 @@ export function Footer({ isConnected, sessionId, state, gameData, focusPlayerId,
                 onChange={(event) => setShowExplanation(event.target.checked)} /> Bot-Entscheidungen anzeigen</label>
               {showExplanation && gameData.lastDecision && <>
                 <p aria-live="polite"><strong>{lastDecisionPlayer?.name || "Bot"}:</strong> {gameData.lastDecision.explanation}{gameData.lastDecision.fallback ? " (Ersatzentscheidung)" : ""}</p>
-                {gameData.lastDecision.diagnostics?.source === "model" && <p className="muted small">
+                {gameData.lastDecision.diagnostics?.source === "model" && gameData.lastDecision.diagnostics.strategyId === "typesafe-jev-choice" && <p className="muted small">
                   {gameData.lastDecision.diagnostics.model} · {(gameData.lastDecision.decisionMs / 1000).toLocaleString("de-DE", { maximumFractionDigits: 2 })} s · {gameData.lastDecision.diagnostics.inputTokens} Eingabetokens.
                   Die Antwortwahrscheinlichkeiten bewerten die Aktionsauswahl; sie sind keine Gewinnwahrscheinlichkeiten.
                 </p>}
